@@ -1,16 +1,17 @@
-# Aviation Replay Data Processor
+# 🛫 Aviation Flight Data Processing System
 
-A Java application for processing and analyzing aviation tracking replay data using Maven for build management.
+A comprehensive Java Spring Boot application for processing and analyzing aviation tracking data, featuring both batch processing and real-time streaming capabilities.
 
 ## Overview
 
-This application processes aviation replay data from JSON files, specifically designed to work with data containing:
+This application processes aviation replay data from JSON files and provides real-time streaming capabilities, designed to work with data containing:
 - **Real Path Points** (`listRealPath`) - Real-time aircraft tracking data
 - **Flight Intentions** (`listFlightIntention`) - Planned flight schedules and information
 - **Timestamp** - Global reference time for the dataset
 
-## Features
+## 🚀 Features
 
+### Batch Processing
 - **Data Loading**: Parse large JSON replay files efficiently
 - **Statistical Analysis**: Generate summaries and statistics about flight data
 - **Interactive Exploration**: Search flights, analyze tracking points, and explore correlations
@@ -18,151 +19,226 @@ This application processes aviation replay data from JSON files, specifically de
 - **Flight Planning Analysis**: Examine aircraft types, airlines, RVSM capabilities, and route information
 - **Data Correlation**: Match flight intentions with actual tracking data
 
-## Prerequisites
+### 🎯 Real-Time Streaming (NEW!)
+- **Live Data Processing**: Process `ReplayPath` packets in real-time via REST API
+- **MongoDB Integration**: Store flight data and tracking points in MongoDB
+- **RESTful API**: HTTP endpoints for packet processing and data retrieval
+- **Upsert Operations**: Smart data merging and deduplication
+- **Health Monitoring**: Built-in health checks and statistics endpoints
+
+## 📋 Prerequisites
 
 - Java 17 or higher
 - Maven 3.6 or higher
-- A `replay.json` file in the project root directory
+- MongoDB (for streaming features)
+- Data files in the `inputData/` folder
 
-## Project Structure
+## 📁 Project Structure
 
 ```
 ├── src/
 │   ├── main/
 │   │   ├── java/
 │   │   │   ├── com/example/
-│   │   │   │   ├── App.java              # Main application
-│   │   │   │   ├── model/                # Data models
+│   │   │   │   ├── StreamingFlightApplication.java  # Spring Boot main class
+│   │   │   │   ├── controller/
+│   │   │   │   │   └── StreamingController.java     # REST API endpoints
+│   │   │   │   ├── model/                           # Data models
 │   │   │   │   │   ├── ReplayData.java
 │   │   │   │   │   ├── RealPathPoint.java
 │   │   │   │   │   ├── FlightIntention.java
-│   │   │   │   │   └── Kinematic.java
-│   │   │   │   └── service/              # Business logic
-│   │   │   │       └── ReplayDataService.java
-│   │   │   └── resources/                # Application resources
+│   │   │   │   │   ├── Kinematic.java
+│   │   │   │   │   ├── JoinedFlightData.java
+│   │   │   │   │   ├── TrackingPoint.java
+│   │   │   │   │   └── ReplayPath.java
+│   │   │   │   ├── service/                         # Business logic
+│   │   │   │   │   ├── ReplayDataService.java
+│   │   │   │   │   ├── StreamingFlightService.java
+│   │   │   │   │   ├── FlightDataJoinService.java
+│   │   │   │   │   └── DataAnalysisService.java
+│   │   │   │   └── repository/
+│   │   │   │       └── FlightRepository.java        # MongoDB repository
+│   │   │   └── resources/
+│   │   │       └── application.yml                  # Configuration
 │   │   └── test/
-│   │       ├── java/                     # Test source code
-│   │       └── resources/                # Test resources
-├── pom.xml                               # Maven configuration
-├── replay.json                           # Aviation data file
-└── README.md                            # This file
+│   │       ├── java/                               # Test source code
+│   │       └── resources/                          # Test resources
+├── inputData/                                      # Input data files (gitignored)
+│   ├── replay.json
+│   ├── replay2.json
+│   └── replay3.json
+├── outputData/                                     # Output data files (gitignored)
+│   ├── joined_flights_output.json
+│   ├── joined_flights_consistent.json
+│   └── joined_flights_replay2_mongodb.json
+├── pom.xml                                         # Maven configuration
+├── STREAMING_SETUP.md                              # Streaming setup guide
+└── README.md                                       # This file
 ```
 
-## Building the Project
+## 🏗️ Building the Project
 
-To compile the project:
 ```bash
+# Compile the project
 mvn compile
-```
 
-To run tests:
-```bash
+# Run tests
 mvn test
-```
 
-To build the JAR file:
-```bash
+# Build the JAR file
 mvn package
 ```
 
-## Running the Application
+## 🚀 Running the Application
 
-Make sure you have a `replay.json` file in the project root, then run:
+### Option 1: Batch Processing (Development/Testing Only)
 
 ```bash
+# Run the batch processing application (for testing with JSON files)
 mvn exec:java -Dexec.mainClass="com.example.App"
 ```
 
-Or after building the JAR:
+### Option 2: Streaming Service (Production Mode)
+
 ```bash
-java -cp target/java-project-1.0.0.jar com.example.App
+# Start the Spring Boot streaming service
+mvn spring-boot:run
 ```
 
-## Application Features
+The streaming service will start on `http://localhost:8080`
 
-### Automatic Analysis
-When you run the application, it will automatically:
-1. Load and parse the replay.json file
-2. Display a data summary (timestamp, number of records)
-3. Analyze real path tracking data (flight levels, speeds, detector sources)
-4. Analyze flight intentions (aircraft types, airlines, RVSM capabilities)
-5. Show correlations between planned and actual flight data
-6. Display sample data for inspection
+## 📡 Streaming API Endpoints
 
-### Interactive Menu
-The application provides an interactive menu with options to:
-1. **Search flights by call sign** - Find specific flights by their call sign
-2. **Get tracking points for a flight plan** - View detailed tracking data for a specific plan ID
-3. **Show data summary** - Display basic statistics about the dataset
-4. **Analyze real path data** - Detailed analysis of tracking points
-5. **Analyze flight intentions** - Detailed analysis of flight plans
-6. **Show sample data** - Display sample records for inspection
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/flights/process-packet` | Process single ReplayPath packet |
+| `POST` | `/api/flights/process-batch` | Process batch ReplayData (for testing) |
+| `GET` | `/api/flights/stats` | Get flight statistics |
+| `GET` | `/api/flights/health` | Health check |
 
-### Data Models
+### Example API Usage
 
-The application uses strongly-typed Java models that map to the JSON structure:
+```bash
+# Health check
+curl http://localhost:8080/api/flights/health
+
+# Process a batch file
+curl -X POST http://localhost:8080/api/flights/process-batch \
+  -H "Content-Type: application/json" \
+  -d @inputData/replay2.json
+
+# Get statistics
+curl http://localhost:8080/api/flights/stats
+```
+
+## 📊 Data Files
+
+### Input Data (Development/Testing Only)
+Place your replay data files in the `inputData/` folder for testing and development:
+- `inputData/replay.json` - Sample replay data for testing
+- `inputData/replay2.json` - Additional replay data for testing
+- `inputData/replay3.json` - Your replay data file for testing
+
+### Output Data
+Generated JSON files are saved to the `outputData/` folder:
+- `outputData/joined_flights_output.json` - Basic joined flight data
+- `outputData/joined_flights_consistent.json` - Joined data with deduplication
+- `outputData/joined_flights_replay2_mongodb.json` - MongoDB-ready format
+
+**Note**: Both `inputData/` and `outputData/` folders are excluded from Git to keep the repository size small.
+
+### Production Data Flow
+In production, data comes through the streaming API:
+- **Real-time packets**: `POST /api/flights/process-packet` - Processes individual `ReplayPath` packets
+- **Batch testing**: `POST /api/flights/process-batch` - For testing with JSON files
+- **No file dependencies**: The system is designed for real-time streaming, not file processing
+
+## 🔧 Configuration
+
+### MongoDB Setup
+
+Edit `src/main/resources/application.yml` if needed:
+```yaml
+spring:
+  data:
+    mongodb:
+      host: localhost
+      port: 27017
+      database: aviation_db
+```
+
+### Running MongoDB
+
+```bash
+# Using Docker (recommended)
+docker run -d --name mongodb -p 27017:27017 mongo:latest
+
+# Or install MongoDB locally
+# Follow instructions at https://www.mongodb.com/try/download/community
+```
+
+## 🎯 Application Features
+
+### Batch Processing Features (Development/Testing)
+- Load and parse replay JSON files for testing
+- Interactive menu for data exploration
+- Search flights by call sign
+- Analyze tracking points and flight intentions
+- Generate statistical summaries
+- **Purpose**: Development, testing, and data analysis
+
+### Streaming Features (Production)
+- Real-time packet processing via REST API
+- MongoDB data persistence
+- RESTful API for integration
+- Automatic data deduplication
+- Health monitoring and statistics
+- **Purpose**: Live production data processing
+
+## 📚 Data Models
+
+The application uses strongly-typed Java models:
 
 - **ReplayData**: Main container with listRealPath, listFlightIntention, and timestamp
-- **RealPathPoint**: Individual tracking points with position, speed, flight level, etc.
-- **FlightIntention**: Planned flight data with call signs, aircraft types, routes, etc.
+- **RealPathPoint**: Individual tracking points with position, speed, flight level
+- **FlightIntention**: Planned flight data with call signs, aircraft types, routes
 - **Kinematic**: Position and movement data including lat/lon coordinates
+- **JoinedFlightData**: Combined flight and tracking data for MongoDB storage
+- **ReplayPath**: Real-time packet structure for streaming
 
-## Dependencies
+## 🔗 Dependencies
 
-- **Jackson**: For JSON parsing and data binding
-- **JUnit 5**: For testing
-- **Java Time API**: For timestamp handling
+- **Spring Boot**: Web framework and auto-configuration
+- **Spring Data MongoDB**: MongoDB integration
+- **Jackson**: JSON parsing and data binding
+- **JUnit 5**: Testing framework
+- **Java Time API**: Timestamp handling
 
-## Sample Usage
+## 🧪 Testing
 
-```java
-// Load replay data
-ReplayDataService service = new ReplayDataService();
-ReplayData data = service.loadReplayData("replay.json");
+```bash
+# Run all tests
+mvn test
 
-// Get basic statistics
-service.printDataSummary(data);
-
-// Find flights by call sign
-List<FlightIntention> flights = service.findFlightsByCallSign(data, "GLO");
-
-// Get tracking points for a flight
-List<RealPathPoint> points = service.getTrackingPointsForPlan(data, 12345);
+# Test with existing data
+curl -X POST http://localhost:8080/api/flights/process-batch \
+  -H "Content-Type: application/json" \
+  -d @inputData/replay2.json
 ```
 
-## Data Format
+## 📖 Documentation
 
-The application expects JSON data with this structure:
-```json
-{
-  "listRealPath": [
-    {
-      "planId": 12345,
-      "flightLevel": 350,
-      "trackSpeed": 450,
-      "kinematic": {
-        "position": {
-          "latitude": -15.7942,
-          "longitude": -47.8822
-        }
-      }
-    }
-  ],
-  "listFlightIntention": [
-    {
-      "planId": 12345,
-      "indicative": "GLO1234",
-      "aircraftType": "B737",
-      "airline": "GOL"
-    }
-  ],
-  "time": 1752022863073
-}
-```
+- **STREAMING_SETUP.md**: Detailed setup guide for streaming features
+- **API Documentation**: Available at `http://localhost:8080` when running
 
-## Contributing
+## 🤝 Contributing
 
-1. Add new analysis methods to `ReplayDataService`
+1. Add new analysis methods to services
 2. Create additional data models as needed
-3. Extend the interactive menu with new features
-4. Add comprehensive tests for new functionality 
+3. Extend the REST API with new endpoints
+4. Add comprehensive tests for new functionality
+5. Update documentation for new features
+
+## 📄 License
+
+This project is licensed under the MIT License - see the LICENSE file for details. 

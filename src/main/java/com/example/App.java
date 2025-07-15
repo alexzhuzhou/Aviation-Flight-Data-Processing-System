@@ -14,7 +14,7 @@ import java.util.Scanner;
  */
 public class App {
     
-    private static final String REPLAY_FILE = "replay2.json";
+    private static final String REPLAY_FILE = "inputData/replay2.json";
     private static final ReplayDataService dataService = new ReplayDataService();
     private static final DataAnalysisService analysisService = new DataAnalysisService();
     private static final FlightDataJoinService joinService = new FlightDataJoinService();
@@ -52,7 +52,7 @@ public class App {
             
         } catch (IOException e) {
             System.err.println("Error loading replay data: " + e.getMessage());
-            System.err.println("Make sure the replay2.json file exists in the project root.");
+            System.err.println("Make sure the replay2.json file exists in the inputData folder.");
         } catch (Exception e) {
             System.err.println("Unexpected error: " + e.getMessage());
             e.printStackTrace();
@@ -228,7 +228,9 @@ public class App {
         String filename = scanner.nextLine().trim();
         
         if (filename.isEmpty()) {
-            filename = "joined_flights.json";
+            filename = "outputData/joined_flights.json";
+        } else if (!filename.startsWith("outputData/")) {
+            filename = "outputData/" + filename;
         }
         
         if (!filename.endsWith(".json")) {

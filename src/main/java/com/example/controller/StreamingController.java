@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import java.util.List;
 
 /**
  * REST controller for streaming flight data processing
@@ -87,6 +88,43 @@ public class StreamingController {
             
         } catch (Exception e) {
             logger.error("Error processing batch data", e);
+            StreamingFlightService.ProcessingResult errorResult = 
+                new StreamingFlightService.ProcessingResult(0, 0, "Error: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(errorResult);
+        }
+    }
+    
+    /**
+     * Batch processing endpoint for multiple ReplayPath packets
+     * Used by external systems to send multiple packets at once
+     */
+    @PostMapping("/process-batch-packets")
+    public ResponseEntity<StreamingFlightService.ProcessingResult> processBatchPackets(
+            @RequestBody List<ReplayPath> replayPaths) {
+        
+        try {
+            logger.info("Received batch of {} ReplayPath packets for processing", replayPaths.size());
+            
+            int totalNewFlights = 0;
+            int totalUpdatedFlights = 0;
+            
+            // Process each ReplayPath packet
+            for (ReplayPath replayPath : replayPaths) {
+                StreamingFlightService.ProcessingResult result = streamingService.processReplayPath(replayPath);
+                totalNewFlights += result.getNewFlights();
+                totalUpdatedFlights += result.getUpdatedFlights();
+            }
+            
+            String message = String.format("Processed %d packets: %d new flights, %d updated flights", 
+                replayPaths.size(), totalNewFlights, totalUpdatedFlights);
+            
+            StreamingFlightService.ProcessingResult batchResult = 
+                new StreamingFlightService.ProcessingResult(totalNewFlights, totalUpdatedFlights, message);
+            
+            return ResponseEntity.ok(batchResult);
+            
+        } catch (Exception e) {
+            logger.error("Error processing batch packets", e);
             StreamingFlightService.ProcessingResult errorResult = 
                 new StreamingFlightService.ProcessingResult(0, 0, "Error: " + e.getMessage());
             return ResponseEntity.internalServerError().body(errorResult);

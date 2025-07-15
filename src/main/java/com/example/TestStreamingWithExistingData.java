@@ -32,7 +32,7 @@ public class TestStreamingWithExistingData implements CommandLineRunner {
     private void testStreamingWithExistingJson() {
         try {
             // Try to load existing JSON file
-            String[] testFiles = {"replay2.json", "replay.json"};
+            String[] testFiles = {"inputData/replay2.json", "inputData/replay.json"};
             
             for (String filename : testFiles) {
                 try {
@@ -68,7 +68,7 @@ public class TestStreamingWithExistingData implements CommandLineRunner {
                     System.out.println("❌ Could not load " + filename + ": " + e.getMessage());
                     if (filename.equals(testFiles[testFiles.length - 1])) {
                         System.out.println("💡 To test streaming functionality:");
-                        System.out.println("   1. Make sure you have replay.json or replay2.json in the project root");
+                        System.out.println("   1. Make sure you have replay.json or replay2.json in the inputData folder");
                         System.out.println("   2. Start the application with: mvn spring-boot:run -Dspring-boot.run.arguments=test-streaming");
                         System.out.println("   3. Or test using the REST API endpoints");
                     }

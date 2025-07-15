@@ -16,14 +16,14 @@ public class TestExport {
         try {
             // Load the replay data
             ReplayDataService dataService = new ReplayDataService();
-            ReplayData replayData = dataService.loadReplayData("replay2.json");
+            ReplayData replayData = dataService.loadReplayData("inputData/replay2.json");
             
             // Join the flight data
             FlightDataJoinService joinService = new FlightDataJoinService();
             List<JoinedFlightData> joinedFlights = joinService.joinFlightData(replayData);
             
             // Export to JSON
-            String filename = "joined_flights_replay2_mongodb.json";
+            String filename = "outputData/joined_flights_replay2_mongodb.json";
             joinService.exportToJson(joinedFlights, filename);
             
             System.out.println("Export completed successfully!");

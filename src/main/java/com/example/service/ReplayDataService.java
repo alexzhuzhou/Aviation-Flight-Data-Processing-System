@@ -5,6 +5,7 @@ import com.example.model.RealPathPoint;
 import com.example.model.ReplayData;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
 /**
  * Service class for processing aviation replay data
  */
+@Service
 public class ReplayDataService {
     
     private final ObjectMapper objectMapper;

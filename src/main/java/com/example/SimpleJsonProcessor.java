@@ -8,14 +8,14 @@ import com.example.service.ReplayDataService;
 import java.util.List;
 
 /**
- * Simple utility to process replay2.json and generate joined flights JSON
+ * Simple utility to process inputData/replay2.json and generate joined flights JSON
  * Uses traditional in-memory join logic (not streaming)
  */
 public class SimpleJsonProcessor {
     
     public static void main(String[] args) {
-        String inputFile = "replay2.json";  // Input file
-        String outputFile = "joined_flights_output.json"; // Output file
+        String inputFile = "inputData/replay2.json";  // Input file
+        String outputFile = "outputData/joined_flights_output.json"; // Output file
         
         try {
             System.out.println("🔄 Processing " + inputFile + "...");

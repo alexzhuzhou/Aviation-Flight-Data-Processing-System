@@ -17,8 +17,8 @@ import java.util.stream.Collectors;
 public class SimpleJsonProcessorWithDeduplication {
     
     public static void main(String[] args) {
-        String inputFile = "replay2.json";
-        String outputFile = "joined_flights_consistent.json";
+        String inputFile = "inputData/replay2.json";
+        String outputFile = "outputData/joined_flights_consistent.json";
         
         try {
             System.out.println("🔄 Processing " + inputFile + " with consistent deduplication...");

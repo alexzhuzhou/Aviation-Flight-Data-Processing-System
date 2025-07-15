@@ -3,6 +3,7 @@ package com.example.service;
 import com.example.model.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
@@ -12,6 +13,7 @@ import java.util.stream.Collectors;
 /**
  * Service for joining flight intentions with tracking points
  */
+@Service
 public class FlightDataJoinService {
     
     private final ObjectMapper objectMapper;

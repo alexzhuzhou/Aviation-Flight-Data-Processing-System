@@ -176,15 +176,17 @@ For high-volume scenarios, consider using:
 
 ## 🧪 Testing
 
-### Test with Existing JSON Files
+### Test with Existing JSON Files (Development/Testing)
 
-You can test the system using your existing `replay2.json` files:
+You can test the system using your existing data files from the `inputData/` folder:
 
 ```bash
 curl -X POST http://localhost:8080/api/flights/process-batch \
   -H "Content-Type: application/json" \
-  -d @replay2.json
+  -d @inputData/replay2.json
 ```
+
+**Note**: This endpoint is for testing purposes. In production, use `/api/flights/process-packet` for real-time data.
 
 ### Run Unit Tests
 
@@ -286,6 +288,46 @@ logging:
     com.example: DEBUG
     org.springframework.data.mongodb: DEBUG
 ```
+
+## 📁 Data File Organization
+
+### Input Data (Development Only)
+The project uses an `inputData/` folder to organize **input data files**:
+```
+inputData/
+├── replay.json      # Sample replay data for testing
+├── replay2.json     # Additional replay data for testing
+└── replay3.json     # Your replay data file for testing
+```
+
+### Output Data
+Generated files are saved to the `outputData/` folder:
+```
+outputData/
+├── joined_flights_output.json        # Basic joined flight data
+├── joined_flights_consistent.json    # Joined data with deduplication
+└── joined_flights_replay2_mongodb.json # MongoDB-ready format
+```
+
+**Important**: These JSON files are for **development and testing only**. In production, data comes through the streaming API endpoints.
+
+### Git Ignore
+Both data folders are excluded from Git to keep the repository size small:
+```gitignore
+inputData/
+outputData/
+```
+
+### Using Data Files
+1. Place your input data files in the `inputData/` folder for testing
+2. Generated output files will be saved to the `outputData/` folder
+3. Use the batch processing mode for development and analysis
+4. Use the streaming API for production data processing
+
+### Production Data Flow
+- **Real-time**: `POST /api/flights/process-packet` - Individual ReplayPath packets
+- **Testing**: `POST /api/flights/process-batch` - JSON files for testing
+- **No file dependencies**: Production system is designed for streaming, not file processing
 
 ## 🎯 Next Steps
 

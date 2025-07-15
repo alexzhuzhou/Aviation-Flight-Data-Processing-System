@@ -3,6 +3,7 @@ package com.example.service;
 import com.example.model.FlightIntention;
 import com.example.model.RealPathPoint;
 import com.example.model.ReplayData;
+import org.springframework.stereotype.Service;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -10,6 +11,7 @@ import java.util.stream.Collectors;
 /**
  * Service for analyzing data patterns and join strategies
  */
+@Service
 public class DataAnalysisService {
     
     /**
