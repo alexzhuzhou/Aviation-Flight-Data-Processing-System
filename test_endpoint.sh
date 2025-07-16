@@ -7,7 +7,7 @@ echo "🧪 Testing Streaming Flight Data API Endpoints"
 echo "=============================================="
 
 # Base URL
-BASE_URL="http://localhost:8080"
+BASE_URL="https://baf470c292dd.ngrok-free.app"
 
 # Test 1: Health Check
 echo ""
