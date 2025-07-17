@@ -250,10 +250,20 @@ public class ReplayDataService {
     /**
      * Format timestamp for display
      */
-    private String formatTimestamp(long timestamp) {
-        Instant instant = Instant.ofEpochMilli(timestamp);
-        LocalDateTime dateTime = LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
-        return dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+    private String formatTimestamp(String timestamp) {
+        if (timestamp == null || timestamp.isEmpty()) {
+            return "Unknown";
+        }
+        try {
+            // Try to parse as long (milliseconds since epoch)
+            long timestampLong = Long.parseLong(timestamp);
+            Instant instant = Instant.ofEpochMilli(timestampLong);
+            LocalDateTime dateTime = LocalDateTime.ofInstant(instant, ZoneId.systemDefault());
+            return dateTime.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
+        } catch (NumberFormatException e) {
+            // If it's not a number, return as is (might be a formatted date string)
+            return timestamp;
+        }
     }
     
     /**
