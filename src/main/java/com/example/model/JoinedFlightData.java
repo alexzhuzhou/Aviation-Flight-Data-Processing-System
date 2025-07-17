@@ -17,7 +17,7 @@ public class JoinedFlightData {
     @Id
     private String id; // MongoDB will auto-generate this
     
-    // Flight intention fields (as requested)
+    // Flight intention fields 
     @Indexed(unique = true) // planId is now the unique business identifier
     private long planId;
     

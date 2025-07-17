@@ -1,20 +1,13 @@
-# 🛫 Streaming Flight Data System Setup Guide
+#  Streaming Flight Data System Setup Guide
 
 ## Overview
 
-This guide explains how to set up the new streaming flight data system that processes `ReplayPath` packets in real-time and stores them in MongoDB, replacing the batch JSON file processing.
+This guide explains how to set up the streaming flight data system that processes `ReplayPath` packets in real-time and stores them in MongoDB. The system supports both individual packet processing and efficient batch processing for high-volume scenarios.
 
-## 🔑 **NEW: Identifier Strategy**
-
-**Updated approach (latest version):**
-- **Flight Instances**: Use `planId` as unique identifier
-- **Tracking Points**: TBD (unique identifier not yet determined)  
-- **Linking**: `FlightIntention.indicative` ↔ `RealPathPoint.indicativeSafe` matching
-
-## 🏗️ Architecture
+## Data Flow & Architecture
 
 ```
-External System (PathVoGeneratorTestNew.java)
+External System (PathVoGenerator/Test Code)
     ↓ HTTP POST requests
 Your REST API (StreamingController)
     ↓ processes packets
@@ -23,81 +16,212 @@ StreamingFlightService
 MongoDB Database
 ```
 
-## 📋 Prerequisites
+### Key Data Structures
+- **ReplayPath**: Streaming packet format with `time` (String), `listRealPath`, `listFlightIntention`
+- **Flight Linking**: `FlightIntention.indicative` ↔ `RealPathPoint.indicativeSafe` matching
+- **Storage**: `JoinedFlightData` documents in MongoDB with automatic deduplication
 
-1. **Java 17+**
+##  Prerequisites
+
+1. **Java 17+** (verified working)
 2. **Maven 3.6+**
-3. **MongoDB** running locally or remotely
-4. **Docker** (optional, for running MongoDB)
+3. **MongoDB** - Docker recommended
+4. **Git** for version control
+5. **curl** or HTTP client for testing
 
-## 🚀 Quick Start
+##  Quick Start
 
-### 1. Start MongoDB
+### 1. Start MongoDB with Docker
 
-**Option A: Using Docker (Recommended)**
 ```bash
-docker run -d --name mongodb -p 27017:27017 mongo:latest
-```
+# Start MongoDB container
+docker run -d --name aviation_mongodb -p 27017:27017 mongo:latest
 
-**Option B: Local Installation**
-- Install MongoDB from [mongodb.com](https://www.mongodb.com/try/download/community)
-- Start the service: `brew services start mongodb-community` (macOS) or `sudo systemctl start mongod` (Linux)
+# Verify it's running
+docker ps | grep mongo
+
+# Should show something like:
+# d729b12cbe55   mongo:latest   "docker-entrypoint.s…"   Up X hours   0.0.0.0:27017->27017/tcp   aviation_mongodb
+```
 
 ### 2. Configure Database Connection
 
-Edit `src/main/resources/application.yml` if needed:
+Create `src/main/resources/application.yml` (this file is **not** tracked in Git):
+
 ```yaml
 spring:
   data:
     mongodb:
-      host: localhost        # Change if MongoDB is remote
-      port: 27017           # Change if using different port
-      database: aviation_db # Change database name if needed
+      host: localhost
+      port: 27017
+      database: aviation_db  # or use 'test' for development
+
+server:
+  port: 8080
+
+logging:
+  level:
+    com.example: INFO
+    org.springframework.data.mongodb: WARN
+    org.springframework.web: INFO
 ```
 
-### 3. Start the Streaming Service
+### 3. Build and Start the Service
 
 ```bash
-# Clean and build
+# Navigate to project directory
+cd path/to/your/streaming-flight-data-system
+
+# Clean build (important after recent model changes)
 mvn clean package
 
-# Run the streaming service
+# Start the streaming service
 mvn spring-boot:run
-# OR
-java -jar target/java-project-1.0.0.jar
 ```
 
-The service will start on `http://localhost:8080` and display available endpoints.
+**Expected Output:**
+```
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::                (v3.1.2)
+
+ Streaming Flight Service is running!
+ API endpoints:
+   POST /api/flights/process-packet - Process single ReplayPath packet
+   POST /api/flights/process-batch-packets - Process multiple ReplayPath packets
+   POST /api/flights/process-batch  - Process batch data (for testing)
+   GET  /api/flights/stats         - Get flight statistics
+   GET  /api/flights/health        - Health check
+```
 
 ### 4. Verify Service is Running
 
 ```bash
+# Health check
 curl http://localhost:8080/api/flights/health
 # Should return: "Streaming Flight Service is running"
+
+# Check initial stats
+curl http://localhost:8080/api/flights/stats
+# Should return: {"totalFlights":0,"flightsWithTracking":0,"totalTrackingPoints":0}
 ```
 
-## 📡 API Endpoints
+##  API Endpoints Reference
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/flights/process-packet` | Process single ReplayPath packet |
-| `POST` | `/api/flights/process-batch` | Process batch ReplayData (for testing) |
-| `GET` | `/api/flights/stats` | Get flight statistics |
-| `GET` | `/api/flights/health` | Health check |
+| Method | Endpoint | Description | Input | Use Case |
+|--------|----------|-------------|-------|----------|
+| `POST` | `/api/flights/process-packet` | Process single ReplayPath packet | Single `ReplayPath` object | Real-time streaming |
+| `POST` | `/api/flights/process-batch-packets` | Process multiple ReplayPath packets | Array of `ReplayPath` objects | **Efficient batch processing** |
+| `POST` | `/api/flights/process-batch` | Process ReplayData (legacy) | Single `ReplayData` object | Testing with old JSON files |
+| `GET` | `/api/flights/stats` | Get flight statistics | None | Monitoring |
+| `GET` | `/api/flights/health` | Health check | None | Health monitoring |
 
-## 🔌 Integration Options
+### Important API Notes
 
-### Option 1: Modify PathVoGeneratorTestNew.java (Recommended)
+- ** Production**: Use `/process-batch-packets` for efficient batch processing
+- ** Real-time**: Use `/process-packet` for individual packet streaming
+- ** Testing**: Use `/process-batch` only for legacy JSON file testing
+- ** JSON Order**: Property order in JSON doesn't matter - fields matched by name
+- ** Time Format**: `time` field accepts String format (timestamps, dates, etc.)
 
-Replace the batch processing in your external codebase:
+##  Integration Examples
+
+### Option 1: Batch Processing (Recommended for PathVoGenerator)
+
+**Updated PathVoGenerator Integration:**
 
 ```java
 @Test
-public void _00_run() throws Exception {
-    // 1) stream all packets for 2025-07-11
+public void _01_runBatch() throws Exception {
+    // 1) Stream all packets for a specific date
     var streamPackets = repo.streamPackets(LocalDate.of(2025, 7, 11));
     
-    // 2) HTTP client for calling your API
+    // 2) HTTP client for calling your streaming API
+    HttpClient httpClient = HttpClient.newHttpClient();
+    ObjectMapper mapper = new ObjectMapper()
+        .registerModule(new JavaTimeModule())
+        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    
+    // 3) Collect all ReplayPaths
+    List<ReplayPath> allPackets = new ArrayList<>();
+    streamPackets.forEach(packet -> {
+        try {
+            final byte[] value = packet.getValue();
+            final ReplayPath input = ReplaySerializer.input(value);
+            allPackets.add(input);
+        } catch (Exception e) {
+            log.error("Failed to deserialize packet", e);
+        }
+    });
+    
+    log.info("Collected {} packets for batch processing", allPackets.size());
+    
+    // 4) Process in efficient batches of 100
+    int batchSize = 100;
+    AtomicInteger processedCount = new AtomicInteger(0);
+    AtomicInteger errorCount = new AtomicInteger(0);
+    
+    for (int i = 0; i < allPackets.size(); i += batchSize) {
+        int endIndex = Math.min(i + batchSize, allPackets.size());
+        List<ReplayPath> batch = allPackets.subList(i, endIndex);
+        
+        try {
+            // Convert batch to JSON
+            String json = mapper.writeValueAsString(batch);
+            
+            // Send batch to your API using the efficient batch endpoint
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("http://localhost:8080/api/flights/process-batch-packets"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(json))
+                .build();
+            
+            HttpResponse<String> response = httpClient.send(request, 
+                HttpResponse.BodyHandlers.ofString());
+            
+            if (response.statusCode() == 200) {
+                processedCount.addAndGet(batch.size());
+                log.info("Processed batch {}/{} ({} packets)", 
+                    (i / batchSize) + 1, (allPackets.size() + batchSize - 1) / batchSize, batch.size());
+            } else {
+                errorCount.addAndGet(batch.size());
+                log.warn("Error processing batch: {} - {}", 
+                    response.statusCode(), response.body());
+            }
+            
+        } catch (Exception e) {
+            errorCount.addAndGet(batch.size());
+            log.error("Failed to process batch", e);
+        }
+    }
+    
+    log.info("Batch processing completed. Processed: {}, Errors: {}", 
+        processedCount.get(), errorCount.get());
+    
+    // 5) Get final statistics
+    HttpRequest statsRequest = HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:8080/api/flights/stats"))
+        .GET()
+        .build();
+    
+    HttpResponse<String> statsResponse = httpClient.send(statsRequest, 
+        HttpResponse.BodyHandlers.ofString());
+    
+    log.info("Final database stats: {}", statsResponse.body());
+}
+```
+
+### Option 2: Real-Time Streaming
+
+```java
+@Test
+public void _02_realTimeStreaming() throws Exception {
+    var streamPackets = repo.streamPackets(LocalDate.of(2025, 7, 11));
+    
     HttpClient httpClient = HttpClient.newHttpClient();
     ObjectMapper mapper = new ObjectMapper()
         .registerModule(new JavaTimeModule())
@@ -106,17 +230,16 @@ public void _00_run() throws Exception {
     AtomicInteger processedCount = new AtomicInteger(0);
     AtomicInteger errorCount = new AtomicInteger(0);
     
-    // 3) Process each packet individually
+    // Process each packet individually
     streamPackets.forEach(packet -> {
         try {
-            // Extract and deserialize
             final byte[] value = packet.getValue();
             final ReplayPath input = ReplaySerializer.input(value);
             
             // Convert to JSON
             String json = mapper.writeValueAsString(input);
             
-            // Send to your streaming API
+            // Send individual packet to streaming API
             HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:8080/api/flights/process-packet"))
                 .header("Content-Type", "application/json")
@@ -145,81 +268,152 @@ public void _00_run() throws Exception {
     
     log.info("Streaming completed. Processed: {}, Errors: {}", 
         processedCount.get(), errorCount.get());
-    
-    // Get final statistics
-    HttpRequest statsRequest = HttpRequest.newBuilder()
-        .uri(URI.create("http://localhost:8080/api/flights/stats"))
-        .GET()
-        .build();
-    
-    HttpResponse<String> statsResponse = httpClient.send(statsRequest, 
-        HttpResponse.BodyHandlers.ofString());
-    
-    log.info("Final database stats: {}", statsResponse.body());
 }
 ```
 
-### Option 2: Shared Library Approach
-
-If you prefer direct integration without HTTP calls:
-
-1. Package your streaming service as a library
-2. Add it as a dependency to the external codebase
-3. Call `StreamingFlightService.processReplayPath()` directly
-
-### Option 3: Message Queue (Future Enhancement)
-
-For high-volume scenarios, consider using:
-- Apache Kafka
-- RabbitMQ
-- Apache Pulsar
-
-## 🧪 Testing
-
-### Test with Existing JSON Files (Development/Testing)
-
-You can test the system using your existing data files from the `inputData/` folder:
+### Option 3: cURL Testing
 
 ```bash
-curl -X POST http://localhost:8080/api/flights/process-batch \
+# Test single packet
+curl -X POST http://localhost:8080/api/flights/process-packet \
   -H "Content-Type: application/json" \
-  -d @inputData/replay2.json
+  -d '{
+    "time": "1626789600000",
+    "listRealPath": [
+      {
+        "planId": 12345,
+        "indicativeSafe": "TEST123",
+        "flightLevel": 350,
+        "trackSpeed": 450,
+        "seqNum": 1
+      }
+    ],
+    "listFlightIntention": [
+      {
+        "planId": 12345,
+        "indicative": "TEST123",
+        "aircraftType": "B737",
+        "airline": "TEST"
+      }
+    ]
+  }'
+
+# Test batch processing
+curl -X POST http://localhost:8080/api/flights/process-batch-packets \
+  -H "Content-Type: application/json" \
+  -d '[
+    {
+      "time": "1626789600000",
+      "listRealPath": [...],
+      "listFlightIntention": [...]
+    },
+    {
+      "time": "1626789600100",
+      "listRealPath": [...],
+      "listFlightIntention": [...]
+    }
+  ]'
 ```
 
-**Note**: This endpoint is for testing purposes. In production, use `/api/flights/process-packet` for real-time data.
+##  Database Operations
 
-### Run Unit Tests
+### Connecting to MongoDB
 
 ```bash
-mvn test
+# Connect to MongoDB shell
+docker exec -it aviation_mongodb mongosh
+
+# Alternative: use container ID if name doesn't work
+docker ps | grep mongo  # Get container ID
+docker exec -it <container_id> mongosh
 ```
 
-### View Database Content
+### Basic Database Commands
 
 ```javascript
-// Connect to MongoDB
-use aviation_db
+// In MongoDB shell
 
-// View flights
+// List all databases
+show dbs
+
+// Switch to your application database
+use aviation_db
+// or
+use test
+
+// List collections
+show collections
+
+// Should show: flights
+
+// View data
 db.flights.find().limit(5)
 
-// Count flights with tracking data
-db.flights.countDocuments({"hasTrackingData": true})
+// Count documents
+db.flights.countDocuments()
 
-// Get flights by airline
-db.flights.find({"airline": "GOL"})
+// Find by indicative
+db.flights.find({"indicative": "GOL1234"})
+
+// Check flights with tracking data
+db.flights.find({"hasTrackingData": true}).limit(3)
+
+// Get statistics
+db.flights.aggregate([
+  {
+    $group: {
+      _id: null,
+      totalFlights: { $sum: 1 },
+      avgTrackingPoints: { $avg: "$totalTrackingPoints" },
+      flightsWithTracking: { 
+        $sum: { $cond: ["$hasTrackingData", 1, 0] }
+      }
+    }
+  }
+])
 ```
 
-## 📊 Monitoring
+### Sample Data Structure
 
-### Check Statistics
+```javascript
+// Example document in MongoDB
+{
+  "_id": ObjectId("..."),
+  "indicative": "GOL1234",
+  "planId": 12345,
+  "aircraftType": "B737",
+  "airline": "GOL",
+  "hasTrackingData": true,
+  "totalTrackingPoints": 15,
+  "lastUpdate": ISODate("..."),
+  "trackingPoints": [
+    {
+      "seqNum": 1,
+      "flightLevel": 350,
+      "trackSpeed": 450,
+      "timestamp": "1626789600000"
+    }
+  ]
+}
+```
+
+##  Testing & Validation
+
+### 1. Service Health Check
 
 ```bash
-curl http://localhost:8080/api/flights/stats
+curl http://localhost:8080/api/flights/health
 ```
 
-Example response:
-```json
+
+
+### 3. Verify Data Processing
+
+```bash
+# Check statistics after processing
+curl http://localhost:8080/api/flights/stats
+
+# Expected response:
 {
   "totalFlights": 150,
   "flightsWithTracking": 120,
@@ -227,122 +421,202 @@ Example response:
 }
 ```
 
-### View Logs
+### 4. Database Verification
 
-The application logs show detailed processing information:
+```bash
+# Connect to database and verify
+docker exec -it aviation_mongodb mongosh
+use aviation_db
+db.flights.countDocuments()
+db.flights.findOne()
 ```
-INFO  StreamingFlightService - Processing ReplayPath with 5 flight intentions and 23 real path points
-INFO  StreamingFlightService - Created new flight: GOL1234
-INFO  StreamingFlightService - Updated flight GLO9610 with 3 new tracking points (total: 15)
-```
 
-## ⚡ Performance Considerations
+##  Performance Optimization
 
-### Database Indexing
-The system automatically creates indexes on:
-- `indicative` (unique index for fast lookups)
-- MongoDB `_id` field
+### Batch Size Recommendations
 
-### Optimization Tips
+- **Small datasets** (< 1000 packets): Batch size 50-100
+- **Medium datasets** (1000-10000 packets): Batch size 100-500  
+- **Large datasets** (> 10000 packets): Batch size 500-1000
+- **Network considerations**: Larger batches for high-latency networks
 
-1. **Batch Size**: Process multiple packets in a single request if network latency is high
-2. **Connection Pooling**: The service uses MongoDB connection pooling automatically
-3. **Async Processing**: For high volume, consider making the API asynchronous
-4. **Memory**: Monitor JVM memory usage with flight count growth
-
-### Expected Performance
+### Performance Metrics
 
 - **Single packet**: ~10-50ms processing time
-- **Database lookups**: ~1-5ms per flight check
-- **Insertion**: ~5-10ms per new flight
-- **Update**: ~10-20ms per tracking data update
+- **Batch processing**: ~5-10ms per packet in batch
+- **Database operations**: ~1-5ms per lookup/insert
+- **Memory usage**: ~50MB base + ~1KB per flight stored
 
-## 🔧 Troubleshooting
+### Monitoring
+
+```bash
+# Check processing statistics
+curl http://localhost:8080/api/flights/stats
+
+# Monitor MongoDB performance
+docker exec -it aviation_mongodb mongosh
+use aviation_db
+db.runCommand({serverStatus: 1})
+```
+
+## Troubleshooting
 
 ### Common Issues
 
-**1. MongoDB Connection Failed**
-```
-Error: com.mongodb.MongoTimeoutException
-```
-Solution: Check MongoDB is running and accessible
+**1. Port 8080 already in use**
+```bash
+# Find what's using the port
+netstat -ano | findstr :8080  # Windows
+lsof -i :8080                 # macOS/Linux
 
-**2. Duplicate Key Error**
+# Solution: Stop the other service or change port in application.yml
 ```
-Error: E11000 duplicate key error collection
-```
-Solution: Flight with same `indicative` already exists (this is expected behavior)
 
-**3. Out of Memory**
+**2. MongoDB connection failed**
+```bash
+# Check if MongoDB is running
+docker ps | grep mongo
+
+# Restart MongoDB if needed
+docker start aviation_mongodb
+
+# Check MongoDB logs
+docker logs aviation_mongodb
 ```
-Error: java.lang.OutOfMemoryError
+
+**3. Compilation errors after git pull**
+```bash
+# Clean and rebuild (especially after model changes)
+mvn clean compile
+mvn clean package
 ```
-Solution: Increase JVM heap size: `-Xmx2g`
+
+**4. Test failures**
+```bash
+# Run tests to identify issues
+mvn clean test
+
+# Check if time field format changed
+# Ensure ReplayPath.time is String, not long
+```
+
+**5. No data in database**
+```bash
+# Verify database connection
+curl http://localhost:8080/api/flights/stats
+
+# Check MongoDB directly
+docker exec -it aviation_mongodb mongosh
+use aviation_db
+db.flights.find().limit(1)
+```
 
 ### Debug Mode
 
-Enable debug logging in `application.yml`:
+Enable detailed logging in `application.yml`:
+
 ```yaml
 logging:
   level:
     com.example: DEBUG
     org.springframework.data.mongodb: DEBUG
+    org.springframework.web: DEBUG
 ```
 
-## 📁 Data File Organization
+### Network Issues
 
-### Input Data (Development Only)
-The project uses an `inputData/` folder to organize **input data files**:
-```
-inputData/
-├── replay.json      # Sample replay data for testing
-├── replay2.json     # Additional replay data for testing
-└── replay3.json     # Your replay data file for testing
-```
+For remote deployment, ensure:
+- Port 8080 is accessible
+- MongoDB port 27017 is accessible (if remote)
+- Firewall settings allow connections
+- Network latency considerations for batch sizes
 
-### Output Data
-Generated files are saved to the `outputData/` folder:
-```
-outputData/
-├── joined_flights_output.json        # Basic joined flight data
-├── joined_flights_consistent.json    # Joined data with deduplication
-└── joined_flights_replay2_mongodb.json # MongoDB-ready format
-```
+##  Deployment Options
 
-**Important**: These JSON files are for **development and testing only**. In production, data comes through the streaming API endpoints.
+### Local Development
 
-### Git Ignore
-Both data folders are excluded from Git to keep the repository size small:
-```gitignore
-inputData/
-outputData/
+```bash
+# Start MongoDB
+docker run -d --name aviation_mongodb -p 27017:27017 mongo:latest
+
+# Start application
+mvn spring-boot:run
 ```
 
-### Using Data Files
-1. Place your input data files in the `inputData/` folder for testing
-2. Generated output files will be saved to the `outputData/` folder
-3. Use the batch processing mode for development and analysis
-4. Use the streaming API for production data processing
+### Remote Server Deployment
+
+```bash
+# On remote server
+git clone <your-repo>
+cd streaming-flight-data-system
+
+# Install Java 17 if needed
+sudo apt update
+sudo apt install openjdk-17-jdk
+
+# Install Docker for MongoDB
+sudo apt install docker.io
+sudo systemctl start docker
+sudo docker run -d --name aviation_mongodb -p 27017:27017 mongo:latest
+
+# Create application.yml (not in git)
+cat > src/main/resources/application.yml << EOF
+spring:
+  data:
+    mongodb:
+      host: localhost
+      port: 27017
+      database: aviation_db
+server:
+  port: 8080
+EOF
+
+# Build and run
+mvn clean package
+java -jar target/java-project-1.0.0.jar
+```
+
+### Docker Deployment (Future)
+
+```bash
+# Build container
+docker build -t streaming-flight-service .
+
+# Run with docker-compose
+docker-compose up -d
+```
+
+##  Data File Organization
+
+### Git Repository Structure
+```
+project/
+├── src/main/java/          # Source code (tracked)
+├── src/main/resources/     # Resources (tracked)
+├── src/test/java/          # Tests (tracked) 
+├── pom.xml                 # Maven config (tracked)
+├── README.md               # Documentation (tracked)
+├── STREAMING_SETUP.md      # This file (tracked)
+├── inputData/              # Test data (NOT tracked)
+├── outputData/             # Generated files (NOT tracked)
+└── application.yml         # Local config (NOT tracked)
+```
+
+
 
 ### Production Data Flow
-- **Real-time**: `POST /api/flights/process-packet` - Individual ReplayPath packets
-- **Testing**: `POST /api/flights/process-batch` - JSON files for testing
-- **No file dependencies**: Production system is designed for streaming, not file processing
+- **Input**: HTTP POST requests with JSON
+- **Processing**: Real-time via REST API
+- **Storage**: MongoDB collections
+- **Output**: API responses and database queries
+- **No file dependencies**: Fully streaming-based
 
-## 🎯 Next Steps
+##  Next Steps
 
-1. **Start with Option 1** (modify PathVoGeneratorTestNew.java)
-2. **Test with small packet volumes** first
-3. **Monitor performance and memory usage**
-4. **Scale horizontally** if needed (multiple service instances)
-5. **Add authentication** for production use
+1. **Start with batch processing** using `/process-batch-packets` endpoint
+2. **Test with small datasets** first (100-1000 packets)
+3. **Monitor performance** using stats endpoint and database queries
+4. **Scale up batch sizes** based on performance
+5. **Add authentication** for production deployment
+6. **Consider horizontal scaling** for very high volumes
 
-## 📞 Support
-
-If you encounter issues:
-1. Check the logs for error details
-2. Verify MongoDB connectivity
-3. Test with the health endpoint
-4. Use the stats endpoint to verify data is being processed
-
-The system is designed to be **fail-safe** - if a packet fails to process, it won't crash the entire service. 
