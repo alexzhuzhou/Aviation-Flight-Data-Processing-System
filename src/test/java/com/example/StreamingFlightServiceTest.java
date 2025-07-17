@@ -53,7 +53,7 @@ public class StreamingFlightServiceTest {
         // Create ReplayPath with flight intention
         ReplayPath replayPath = new ReplayPath();
         replayPath.setListFlightIntention(List.of(intention));
-        replayPath.setTime(System.currentTimeMillis());
+        replayPath.setTime(String.valueOf(System.currentTimeMillis()));
         
         // Process the packet
         StreamingFlightService.ProcessingResult result = streamingService.processReplayPath(replayPath);
@@ -91,7 +91,7 @@ public class StreamingFlightServiceTest {
         // Create ReplayPath with tracking data
         ReplayPath replayPath = new ReplayPath();
         replayPath.setListRealPath(List.of(trackingPoint));
-        replayPath.setTime(System.currentTimeMillis());
+        replayPath.setTime(String.valueOf(System.currentTimeMillis()));
         
         // Process the packet
         StreamingFlightService.ProcessingResult result = streamingService.processReplayPath(replayPath);
@@ -118,7 +118,7 @@ public class StreamingFlightServiceTest {
         // Create ReplayPath with tracking data
         ReplayPath replayPath = new ReplayPath();
         replayPath.setListRealPath(List.of(trackingPoint));
-        replayPath.setTime(System.currentTimeMillis());
+        replayPath.setTime(String.valueOf(System.currentTimeMillis()));
         
         // Process the packet
         StreamingFlightService.ProcessingResult result = streamingService.processReplayPath(replayPath);
