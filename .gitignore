@@ -52,7 +52,8 @@ buildNumber.properties
 ehthumbs.db
 Thumbs.db
 
-src/main/resources/application.yml
+src/main/java/com/example/resources/application.yml
 # Data folders
 inputData/
 outputData/
+PathVo/

@@ -15,12 +15,12 @@ public class ReplayData {
     private List<FlightIntention> listFlightIntention;
     
     @JsonProperty("time")
-    private long time;
+    private String time;
     
     // Constructors
     public ReplayData() {}
     
-    public ReplayData(List<RealPathPoint> listRealPath, List<FlightIntention> listFlightIntention, long time) {
+    public ReplayData(List<RealPathPoint> listRealPath, List<FlightIntention> listFlightIntention, String time) {
         this.listRealPath = listRealPath;
         this.listFlightIntention = listFlightIntention;
         this.time = time;
@@ -43,11 +43,11 @@ public class ReplayData {
         this.listFlightIntention = listFlightIntention;
     }
     
-    public long getTime() {
+    public String getTime() {
         return time;
     }
     
-    public void setTime(long time) {
+    public void setTime(String time) {
         this.time = time;
     }
     
