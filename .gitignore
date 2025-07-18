@@ -57,3 +57,7 @@ src/main/java/com/example/resources/application.yml
 inputData/
 outputData/
 PathVo/
+DuplicateChecker.java
+flight_data.json
+run_duplicate_checker.bat
+run_duplicate_checker.sh

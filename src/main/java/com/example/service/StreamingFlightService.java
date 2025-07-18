@@ -10,7 +10,9 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.LinkedHashMap;
 
 /**
  * Service for streaming flight data processing
@@ -130,23 +132,106 @@ public class StreamingFlightService {
                 .map(TrackingPoint::new)
                 .collect(Collectors.toList());
         
-        // Append to existing tracking points
+        // Get existing tracking points
         List<TrackingPoint> allTrackingPoints = existingFlight.getTrackingPoints();
         if (allTrackingPoints == null) {
             allTrackingPoints = new ArrayList<>();
         }
-        allTrackingPoints.addAll(newTrackingPoints);
+        
+        // Create a set of existing coordinate+indicativeSafe combinations for deduplication
+        Set<String> existingCoordinateKeys = allTrackingPoints.stream()
+                .map(point -> createCoordinateKey(point.getLatitude(), point.getLongitude(), point.getIndicativeSafe()))
+                .collect(Collectors.toSet());
+        
+        // Filter out tracking points that already exist (based on lat+lon+indicativeSafe)
+        List<TrackingPoint> uniqueNewPoints = newTrackingPoints.stream()
+                .filter(point -> !existingCoordinateKeys.contains(
+                    createCoordinateKey(point.getLatitude(), point.getLongitude(), point.getIndicativeSafe())
+                ))
+                .collect(Collectors.toList());
+        
+        if (uniqueNewPoints.isEmpty()) {
+            logger.debug("No new tracking points to add for flight {}", identifier);
+            return 0; // No update needed
+        }
+        
+        // Append only unique tracking points
+        allTrackingPoints.addAll(uniqueNewPoints);
         
         // Update flight with new tracking points
         existingFlight.setTrackingPoints(allTrackingPoints);
+        existingFlight.setHasTrackingData(true);
+        existingFlight.setTotalTrackingPoints(allTrackingPoints.size());
+        
         flightRepository.save(existingFlight);
         
         logger.info("Updated flight {} with {} new tracking points (total: {})", 
-                identifier, newTrackingPoints.size(), allTrackingPoints.size());
+                identifier, uniqueNewPoints.size(), allTrackingPoints.size());
         
         return 1; // One flight updated
     }
-    
+
+    /**
+     * Create a unique key for coordinate+indicativeSafe combination
+     */
+    private String createCoordinateKey(double latitude, double longitude, String indicativeSafe) {
+        // Round coordinates to 6 decimal places (~1 meter precision) to handle floating point precision issues
+        double roundedLat = Math.round(latitude * 1000000.0) / 1000000.0;
+        double roundedLon = Math.round(longitude * 1000000.0) / 1000000.0;
+        return String.format("%.6f,%.6f,%s", roundedLat, roundedLon, 
+                indicativeSafe != null ? indicativeSafe : "");
+    }
+
+    /**
+     * Clean up duplicate tracking points from all flights
+     * This method removes duplicate tracking points based on lat+lon+indicativeSafe
+     */
+    public int cleanupDuplicateTrackingPoints() {
+        logger.info("Starting cleanup of duplicate tracking points...");
+        
+        List<JoinedFlightData> allFlights = flightRepository.findAll();
+        int totalCleaned = 0;
+        int flightsUpdated = 0;
+        
+        for (JoinedFlightData flight : allFlights) {
+            List<TrackingPoint> trackingPoints = flight.getTrackingPoints();
+            if (trackingPoints == null || trackingPoints.isEmpty()) {
+                continue;
+            }
+            
+            int originalSize = trackingPoints.size();
+            
+            // Remove duplicates based on lat+lon+indicativeSafe, keeping the first occurrence
+            Map<String, TrackingPoint> uniquePoints = new LinkedHashMap<>();
+            for (TrackingPoint point : trackingPoints) {
+                String key = createCoordinateKey(point.getLatitude(), point.getLongitude(), point.getIndicativeSafe());
+                uniquePoints.putIfAbsent(key, point);
+            }
+            
+            List<TrackingPoint> cleanedPoints = new ArrayList<>(uniquePoints.values());
+            
+            if (cleanedPoints.size() < originalSize) {
+                flight.setTrackingPoints(cleanedPoints);
+                flight.setTotalTrackingPoints(cleanedPoints.size());
+                flight.setHasTrackingData(!cleanedPoints.isEmpty());
+                
+                flightRepository.save(flight);
+                
+                int removed = originalSize - cleanedPoints.size();
+                totalCleaned += removed;
+                flightsUpdated++;
+                
+                logger.info("Cleaned flight {}: removed {} duplicate tracking points ({} -> {})", 
+                        flight.getIndicative(), removed, originalSize, cleanedPoints.size());
+            }
+        }
+        
+        logger.info("Cleanup completed: {} flights updated, {} total duplicate tracking points removed", 
+                flightsUpdated, totalCleaned);
+        
+        return totalCleaned;
+    }
+
     /**
      * Get flight statistics
      */

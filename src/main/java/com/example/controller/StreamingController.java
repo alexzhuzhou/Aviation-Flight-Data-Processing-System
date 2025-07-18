@@ -95,6 +95,27 @@ public class StreamingController {
     }
     
     /**
+     * Clean up duplicate tracking points from all flights
+     * This endpoint removes duplicate tracking points based on seqNum
+     */
+    @PostMapping("/cleanup-duplicates")
+    public ResponseEntity<String> cleanupDuplicates() {
+        try {
+            logger.info("Starting duplicate tracking points cleanup...");
+            int removedCount = streamingService.cleanupDuplicateTrackingPoints();
+            
+            String message = String.format("Cleanup completed: %d duplicate tracking points removed", removedCount);
+            logger.info(message);
+            
+            return ResponseEntity.ok(message);
+            
+        } catch (Exception e) {
+            logger.error("Error during cleanup", e);
+            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
+        }
+    }
+
+    /**
      * Batch processing endpoint for multiple ReplayPath packets
      * Used by external systems to send multiple packets at once
      */
