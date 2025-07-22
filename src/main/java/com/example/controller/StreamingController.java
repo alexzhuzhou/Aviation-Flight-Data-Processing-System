@@ -31,7 +31,8 @@ public class StreamingController {
             @RequestBody ReplayPath replayPath) {
         
         try {
-            logger.info("Received ReplayPath packet for processing");
+            logger.info("Received ReplayPath packet for processing with timestamp: {}", 
+                replayPath.getPacketStoredTimestamp());
             StreamingFlightService.ProcessingResult result = streamingService.processReplayPath(replayPath);
             return ResponseEntity.ok(result);
             

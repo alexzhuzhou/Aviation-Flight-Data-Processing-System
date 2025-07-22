@@ -30,12 +30,21 @@ public class TrackingPoint {
     public TrackingPoint() {}
     
     public TrackingPoint(RealPathPoint realPathPoint) {
+        this(realPathPoint, null);
+    }
+    
+    public TrackingPoint(RealPathPoint realPathPoint, String packetTimestamp) {
         if (realPathPoint != null) {
             this.planId = realPathPoint.getPlanId();
             this.indicativeSafe = realPathPoint.getIndicativeSafe();
             this.flightLevel = realPathPoint.getFlightLevel();
             this.seqNum = realPathPoint.getSeqNum();
             this.simulating = realPathPoint.isSimulating();
+            
+            // Set the packet timestamp when this tracking point was received
+            if (packetTimestamp != null) {
+                this.timestamp = parseTimestampToLong(packetTimestamp);
+            }
             
             // Extract SSR information
             if (realPathPoint.getSsr() != null) {
@@ -57,6 +66,31 @@ public class TrackingPoint {
                     this.longitude = realPathPoint.getKinematic().getPosition().getLongitude();
                 }
             }
+        }
+    }
+    
+    /**
+     * Helper method to parse timestamp string to long
+     * Handles various timestamp formats including ISO 8601
+     */
+    private long parseTimestampToLong(String timestampStr) {
+        try {
+            // Try to parse as ISO 8601 format: "2025-07-11T00:00:57.288+0000"
+            if (timestampStr.contains("T")) {
+                // Handle +0000 format by converting to Z for proper parsing
+                String normalized = timestampStr.replaceAll("([+-])(\\d{2})(\\d{2})$", "$1$2:$3");
+                if (normalized.endsWith("+00:00")) {
+                    normalized = normalized.replace("+00:00", "Z");
+                }
+                return java.time.Instant.parse(normalized).toEpochMilli();
+            }
+            // Try to parse as long (Unix timestamp)
+            return Long.parseLong(timestampStr);
+        } catch (Exception e) {
+            // Log the parsing error for debugging
+            System.err.println("Failed to parse timestamp: " + timestampStr + ", error: " + e.getMessage());
+            // If parsing fails, return current timestamp as fallback
+            return System.currentTimeMillis();
         }
     }
     

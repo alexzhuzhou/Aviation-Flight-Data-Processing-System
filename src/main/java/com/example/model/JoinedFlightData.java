@@ -51,6 +51,9 @@ public class JoinedFlightData {
     private int totalTrackingPoints;
     private boolean hasTrackingData;
     
+    // Timestamp of the last packet that updated this flight
+    private String lastPacketTimestamp;
+    
     // Constructors
     public JoinedFlightData() {}
     
@@ -171,6 +174,9 @@ public class JoinedFlightData {
     
     public boolean isHasTrackingData() { return hasTrackingData; }
     public void setHasTrackingData(boolean hasTrackingData) { this.hasTrackingData = hasTrackingData; }
+    
+    public String getLastPacketTimestamp() { return lastPacketTimestamp; }
+    public void setLastPacketTimestamp(String lastPacketTimestamp) { this.lastPacketTimestamp = lastPacketTimestamp; }
     
     @Override
     public String toString() {

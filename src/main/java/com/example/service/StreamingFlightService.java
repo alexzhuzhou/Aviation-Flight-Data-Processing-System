@@ -35,25 +35,27 @@ public class StreamingFlightService {
             return new ProcessingResult(0, 0, "Invalid replay path");
         }
         
-        logger.info("Processing ReplayPath with {} flight intentions and {} real path points",
+        logger.info("Processing ReplayPath with {} flight intentions and {} real path points, packet timestamp: {}",
                 replayPath.getListFlightIntention() != null ? replayPath.getListFlightIntention().size() : 0,
-                replayPath.getListRealPath() != null ? replayPath.getListRealPath().size() : 0);
+                replayPath.getListRealPath() != null ? replayPath.getListRealPath().size() : 0,
+                replayPath.getPacketStoredTimestamp());
         
         int newFlights = 0;
         int updatedFlights = 0;
+        String packetTimestamp = replayPath.getPacketStoredTimestamp();
         
         // Process flight intentions first (these define the flights)
         if (replayPath.getListFlightIntention() != null) {
             for (FlightIntention intention : replayPath.getListFlightIntention()) {
-                if (processFlightIntention(intention)) {
+                if (processFlightIntention(intention, packetTimestamp)) {
                     newFlights++;
                 }
             }
         }
         
-        // Process real path points (tracking data)
+        // Process real path points (tracking data) with packet timestamp
         if (replayPath.getListRealPath() != null) {
-            updatedFlights += processRealPathPoints(replayPath.getListRealPath());
+            updatedFlights += processRealPathPoints(replayPath.getListRealPath(), packetTimestamp);
         }
         
         String message = String.format("Processed %d new flights, updated %d flights with tracking data", 
@@ -67,34 +69,43 @@ public class StreamingFlightService {
      * Process a single flight intention
      * Creates new flight if it doesn't exist
      */
-    private boolean processFlightIntention(FlightIntention intention) {
-        if (intention.getPlanId() == 0) {
-            logger.warn("Skipping flight intention with planId = 0");
+    private boolean processFlightIntention(FlightIntention intention, String packetTimestamp) {
+        if (intention == null || intention.getPlanId() == 0) {
+            logger.debug("Skipping invalid flight intention: {}", intention);
             return false;
         }
         
-        long planId = intention.getPlanId();
+        // Check if flight already exists (by planId for uniqueness)
+        var existingFlightOpt = flightRepository.findByPlanId(intention.getPlanId());
         
-        // Check if flight already exists by planId
-        if (flightRepository.existsByPlanId(planId)) {
-            logger.debug("Flight with planId {} already exists, skipping", planId);
-            return false;
+        if (existingFlightOpt.isEmpty()) {
+            // Create new flight from intention
+            JoinedFlightData newFlight = new JoinedFlightData(intention);
+            newFlight.setLastPacketTimestamp(packetTimestamp);
+            flightRepository.save(newFlight);
+            
+            logger.info("Created new flight: planId={}, indicative={}, timestamp={}", 
+                    intention.getPlanId(), intention.getIndicative(), packetTimestamp);
+            return true;
+        } else {
+            // Flight already exists, optionally update timestamp
+            JoinedFlightData existingFlight = existingFlightOpt.get();
+            if (packetTimestamp != null) {
+                existingFlight.setLastPacketTimestamp(packetTimestamp);
+                flightRepository.save(existingFlight);
+            }
+            logger.debug("Flight already exists: planId={}, indicative={}", 
+                    intention.getPlanId(), intention.getIndicative());
         }
         
-        // Create new flight record
-        JoinedFlightData newFlight = new JoinedFlightData(intention);
-        newFlight.setTrackingPoints(new ArrayList<>()); // Initialize empty tracking points
-        
-        flightRepository.save(newFlight);
-        logger.info("Created new flight: planId={}, indicative={}", planId, intention.getIndicative());
-        return true;
+        return false; // Didn't create a new flight
     }
     
     /**
      * Process real path points and append to existing flights
      * Links via indicative ↔ indicativeSafe matching
      */
-    private int processRealPathPoints(List<RealPathPoint> realPathPoints) {
+    private int processRealPathPoints(List<RealPathPoint> realPathPoints, String packetTimestamp) {
         // Group tracking points by indicativeSafe (for linking to flights)
         Map<String, List<RealPathPoint>> pointsByIndicative = realPathPoints.stream()
                 .filter(rp -> rp.getIndicativeSafe() != null && !rp.getIndicativeSafe().trim().isEmpty())
@@ -113,7 +124,7 @@ public class StreamingFlightService {
             var existingFlightOpt = flightRepository.findByIndicative(indicativeSafe);
             
             if (existingFlightOpt.isPresent()) {
-                updatedCount += updateFlightWithTrackingPoints(existingFlightOpt.get(), newPoints, "indicative=" + indicativeSafe);
+                updatedCount += updateFlightWithTrackingPoints(existingFlightOpt.get(), newPoints, "indicative=" + indicativeSafe, packetTimestamp);
             } else {
                 logger.warn("Received tracking data for unknown flight indicative: {}", indicativeSafe);
                 // Optionally, you could create a new flight here with only tracking data
@@ -126,10 +137,10 @@ public class StreamingFlightService {
     /**
      * Helper method to update flight with new tracking points
      */
-    private int updateFlightWithTrackingPoints(JoinedFlightData existingFlight, List<RealPathPoint> newPoints, String identifier) {
+    private int updateFlightWithTrackingPoints(JoinedFlightData existingFlight, List<RealPathPoint> newPoints, String identifier, String packetTimestamp) {
         // Convert new RealPathPoints to TrackingPoints
         List<TrackingPoint> newTrackingPoints = newPoints.stream()
-                .map(TrackingPoint::new)
+                .map(point -> new TrackingPoint(point, packetTimestamp))
                 .collect(Collectors.toList());
         
         // Get existing tracking points
@@ -162,6 +173,11 @@ public class StreamingFlightService {
         existingFlight.setTrackingPoints(allTrackingPoints);
         existingFlight.setHasTrackingData(true);
         existingFlight.setTotalTrackingPoints(allTrackingPoints.size());
+        
+        // Update the flight with the packet timestamp
+        if (packetTimestamp != null) {
+            existingFlight.setLastPacketTimestamp(packetTimestamp);
+        }
         
         flightRepository.save(existingFlight);
         

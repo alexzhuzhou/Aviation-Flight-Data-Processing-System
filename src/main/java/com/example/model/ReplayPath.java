@@ -20,6 +20,10 @@ public class ReplayPath {
     @JsonProperty("time")
     private String time;
     
+    // Timestamp when this packet was stored in the original system
+    @JsonProperty("packetStoredTimestamp")
+    private String packetStoredTimestamp;
+    
     // Constructors
     public ReplayPath() {}
     
@@ -27,6 +31,13 @@ public class ReplayPath {
         this.listRealPath = listRealPath;
         this.listFlightIntention = listFlightIntention;
         this.time = time;
+    }
+    
+    public ReplayPath(List<RealPathPoint> listRealPath, List<FlightIntention> listFlightIntention, String time, String packetStoredTimestamp) {
+        this.listRealPath = listRealPath;
+        this.listFlightIntention = listFlightIntention;
+        this.time = time;
+        this.packetStoredTimestamp = packetStoredTimestamp;
     }
     
     // Getters and Setters
@@ -54,12 +65,21 @@ public class ReplayPath {
         this.time = time;
     }
     
+    public String getPacketStoredTimestamp() {
+        return packetStoredTimestamp;
+    }
+    
+    public void setPacketStoredTimestamp(String packetStoredTimestamp) {
+        this.packetStoredTimestamp = packetStoredTimestamp;
+    }
+    
     @Override
     public String toString() {
         return "ReplayPath{" +
                 "realPathPoints=" + (listRealPath != null ? listRealPath.size() : 0) +
                 ", flightIntentions=" + (listFlightIntention != null ? listFlightIntention.size() : 0) +
                 ", time=" + time +
+                ", packetStoredTimestamp=" + packetStoredTimestamp +
                 '}';
     }
 } 
