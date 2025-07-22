@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.LinkedHashMap;
+import java.util.HashMap;
 
 /**
  * Service for streaming flight data processing
@@ -44,21 +45,28 @@ public class StreamingFlightService {
         int updatedFlights = 0;
         String packetTimestamp = replayPath.getPacketStoredTimestamp();
         
-        // Process flight intentions first (these define the flights)
+        // PACKET-LEVEL MATCHING: Only match within this packet
+        Map<String, FlightIntention> packetFlightsByIndicative = new HashMap<>();
+        
+        // Process flight intentions first and index them by indicative
         if (replayPath.getListFlightIntention() != null) {
             for (FlightIntention intention : replayPath.getListFlightIntention()) {
                 if (processFlightIntention(intention, packetTimestamp)) {
                     newFlights++;
                 }
+                // Index flight intentions from this packet for matching
+                if (intention.getIndicative() != null && !intention.getIndicative().trim().isEmpty()) {
+                    packetFlightsByIndicative.put(intention.getIndicative().trim(), intention);
+                }
             }
         }
         
-        // Process real path points (tracking data) with packet timestamp
+        // Process real path points - ONLY match with flights from THIS packet
         if (replayPath.getListRealPath() != null) {
-            updatedFlights += processRealPathPoints(replayPath.getListRealPath(), packetTimestamp);
+            updatedFlights += processRealPathPointsWithinPacket(replayPath.getListRealPath(), packetFlightsByIndicative, packetTimestamp);
         }
         
-        String message = String.format("Processed %d new flights, updated %d flights with tracking data", 
+        String message = String.format("Processed %d new flights, updated %d flights with tracking data (packet-level matching)", 
                 newFlights, updatedFlights);
         logger.info(message);
         
@@ -103,9 +111,10 @@ public class StreamingFlightService {
     
     /**
      * Process real path points and append to existing flights
-     * Links via indicative ↔ indicativeSafe matching
+     * ONLY matches with flight intentions from the SAME packet
+     * Prevents cross-packet reassignment of tracking points
      */
-    private int processRealPathPoints(List<RealPathPoint> realPathPoints, String packetTimestamp) {
+    private int processRealPathPointsWithinPacket(List<RealPathPoint> realPathPoints, Map<String, FlightIntention> packetFlightsByIndicative, String packetTimestamp) {
         // Group tracking points by indicativeSafe (for linking to flights)
         Map<String, List<RealPathPoint>> pointsByIndicative = realPathPoints.stream()
                 .filter(rp -> rp.getIndicativeSafe() != null && !rp.getIndicativeSafe().trim().isEmpty())
@@ -115,19 +124,25 @@ public class StreamingFlightService {
         
         int updatedCount = 0;
         
-        // Process indicative-based linking: indicativeSafe → indicative
+        // Process indicative-based linking: ONLY within this packet
         for (Map.Entry<String, List<RealPathPoint>> entry : pointsByIndicative.entrySet()) {
             String indicativeSafe = entry.getKey();
             List<RealPathPoint> newPoints = entry.getValue();
             
-            // Find existing flight by matching indicative
-            var existingFlightOpt = flightRepository.findByIndicative(indicativeSafe);
-            
-            if (existingFlightOpt.isPresent()) {
-                updatedCount += updateFlightWithTrackingPoints(existingFlightOpt.get(), newPoints, "indicative=" + indicativeSafe, packetTimestamp);
+            // Check if this indicative has a corresponding FlightIntention in THIS packet
+            if (packetFlightsByIndicative.containsKey(indicativeSafe)) {
+                // Find the existing flight in database (created from this packet's FlightIntention)
+                var existingFlightOpt = flightRepository.findByIndicative(indicativeSafe);
+                
+                if (existingFlightOpt.isPresent()) {
+                    updatedCount += updateFlightWithTrackingPoints(existingFlightOpt.get(), newPoints, "packet-level-match=" + indicativeSafe, packetTimestamp);
+                    logger.info("Matched {} tracking points to flight {} within packet", newPoints.size(), indicativeSafe);
+                } else {
+                    logger.warn("Flight intention exists in packet but flight not found in database: {}", indicativeSafe);
+                }
             } else {
-                logger.warn("Received tracking data for unknown flight indicative: {}", indicativeSafe);
-                // Optionally, you could create a new flight here with only tracking data
+                // No matching FlightIntention in this packet - skip to prevent cross-packet reassignment
+                logger.debug("Tracking data for {} has no matching FlightIntention in this packet - skipping to prevent reassignment", indicativeSafe);
             }
         }
         
