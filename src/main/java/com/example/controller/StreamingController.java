@@ -60,6 +60,22 @@ public class StreamingController {
     }
     
     /**
+     * Analyze duplicate indicatives in the database
+     * This helps identify potential data contamination issues
+     */
+    @GetMapping("/analyze-duplicates")
+    public ResponseEntity<StreamingFlightService.DuplicateIndicativeAnalysis> analyzeDuplicateIndicatives() {
+        try {
+            StreamingFlightService.DuplicateIndicativeAnalysis analysis = streamingService.analyzeDuplicateIndicatives();
+            return ResponseEntity.ok(analysis);
+            
+        } catch (Exception e) {
+            logger.error("Error analyzing duplicate indicatives", e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+    
+    /**
      * Health check endpoint
      */
     @GetMapping("/health")
@@ -113,43 +129,6 @@ public class StreamingController {
         } catch (Exception e) {
             logger.error("Error during cleanup", e);
             return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Batch processing endpoint for multiple ReplayPath packets
-     * Used by external systems to send multiple packets at once
-     */
-    @PostMapping("/process-batch-packets")
-    public ResponseEntity<StreamingFlightService.ProcessingResult> processBatchPackets(
-            @RequestBody List<ReplayPath> replayPaths) {
-        
-        try {
-            logger.info("Received batch of {} ReplayPath packets for processing", replayPaths.size());
-            
-            int totalNewFlights = 0;
-            int totalUpdatedFlights = 0;
-            
-            // Process each ReplayPath packet
-            for (ReplayPath replayPath : replayPaths) {
-                StreamingFlightService.ProcessingResult result = streamingService.processReplayPath(replayPath);
-                totalNewFlights += result.getNewFlights();
-                totalUpdatedFlights += result.getUpdatedFlights();
-            }
-            
-            String message = String.format("Processed %d packets: %d new flights, %d updated flights", 
-                replayPaths.size(), totalNewFlights, totalUpdatedFlights);
-            
-            StreamingFlightService.ProcessingResult batchResult = 
-                new StreamingFlightService.ProcessingResult(totalNewFlights, totalUpdatedFlights, message);
-            
-            return ResponseEntity.ok(batchResult);
-            
-        } catch (Exception e) {
-            logger.error("Error processing batch packets", e);
-            StreamingFlightService.ProcessingResult errorResult = 
-                new StreamingFlightService.ProcessingResult(0, 0, "Error: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(errorResult);
         }
     }
 } 

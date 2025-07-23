@@ -13,11 +13,24 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.LinkedHashMap;
-import java.util.HashMap;
 
 /**
- * Service for streaming flight data processing
- * Handles real-time insertion and updates of flight tracking data
+ * Service for processing flight streaming data with timestamp-based disambiguation
+ * 
+ * Key features:
+ * - Flight matching by planId (primary unique identifier)
+ * - Cross-packet tracking point assignment using indicative ↔ indicativeSafe
+ * - Timestamp-based disambiguation for multiple flights with same indicative
+ * - Deduplication using timestamp + coordinates + indicativeSafe for uniqueness
+ * 
+ * Disambiguation Strategy:
+ * 1. Match tracking point timestamp to flight time window (flightPlanDate to currentDateTimeOfArrival)
+ * 2. Find closest time window with 30-minute tolerance
+ * 3. Fallback to most recently updated flight
+ * 4. Fallback to flight with fewest tracking points
+ * 
+ * This approach ensures tracking points are assigned to the correct flight instance
+ * even when multiple flights share the same call sign (indicative).
  */
 @Service
 public class StreamingFlightService {
@@ -45,28 +58,21 @@ public class StreamingFlightService {
         int updatedFlights = 0;
         String packetTimestamp = replayPath.getPacketStoredTimestamp();
         
-        // PACKET-LEVEL MATCHING: Only match within this packet
-        Map<String, FlightIntention> packetFlightsByIndicative = new HashMap<>();
-        
-        // Process flight intentions first and index them by indicative
+        // Process flight intentions first (these define the flights)
         if (replayPath.getListFlightIntention() != null) {
             for (FlightIntention intention : replayPath.getListFlightIntention()) {
                 if (processFlightIntention(intention, packetTimestamp)) {
                     newFlights++;
                 }
-                // Index flight intentions from this packet for matching
-                if (intention.getIndicative() != null && !intention.getIndicative().trim().isEmpty()) {
-                    packetFlightsByIndicative.put(intention.getIndicative().trim(), intention);
-                }
             }
         }
         
-        // Process real path points - ONLY match with flights from THIS packet
+        // Process real path points - allow cross-packet updates for flight progress
         if (replayPath.getListRealPath() != null) {
-            updatedFlights += processRealPathPointsWithinPacket(replayPath.getListRealPath(), packetFlightsByIndicative, packetTimestamp);
+            updatedFlights += processRealPathPoints(replayPath.getListRealPath(), packetTimestamp);
         }
         
-        String message = String.format("Processed %d new flights, updated %d flights with tracking data (packet-level matching)", 
+        String message = String.format("Processed %d new flights, updated %d flights with tracking data (cross-packet progress tracking)", 
                 newFlights, updatedFlights);
         logger.info(message);
         
@@ -111,10 +117,9 @@ public class StreamingFlightService {
     
     /**
      * Process real path points and append to existing flights
-     * ONLY matches with flight intentions from the SAME packet
-     * Prevents cross-packet reassignment of tracking points
+     * Allows cross-packet tracking for flight progress while maintaining data integrity
      */
-    private int processRealPathPointsWithinPacket(List<RealPathPoint> realPathPoints, Map<String, FlightIntention> packetFlightsByIndicative, String packetTimestamp) {
+    private int processRealPathPoints(List<RealPathPoint> realPathPoints, String packetTimestamp) {
         // Group tracking points by indicativeSafe (for linking to flights)
         Map<String, List<RealPathPoint>> pointsByIndicative = realPathPoints.stream()
                 .filter(rp -> rp.getIndicativeSafe() != null && !rp.getIndicativeSafe().trim().isEmpty())
@@ -124,29 +129,190 @@ public class StreamingFlightService {
         
         int updatedCount = 0;
         
-        // Process indicative-based linking: ONLY within this packet
+        // Process indicative-based linking: Find flights across all packets (cross-packet progress)
         for (Map.Entry<String, List<RealPathPoint>> entry : pointsByIndicative.entrySet()) {
             String indicativeSafe = entry.getKey();
             List<RealPathPoint> newPoints = entry.getValue();
             
-            // Check if this indicative has a corresponding FlightIntention in THIS packet
-            if (packetFlightsByIndicative.containsKey(indicativeSafe)) {
-                // Find the existing flight in database (created from this packet's FlightIntention)
-                var existingFlightOpt = flightRepository.findByIndicative(indicativeSafe);
-                
-                if (existingFlightOpt.isPresent()) {
-                    updatedCount += updateFlightWithTrackingPoints(existingFlightOpt.get(), newPoints, "packet-level-match=" + indicativeSafe, packetTimestamp);
-                    logger.info("Matched {} tracking points to flight {} within packet", newPoints.size(), indicativeSafe);
-                } else {
-                    logger.warn("Flight intention exists in packet but flight not found in database: {}", indicativeSafe);
-                }
+            // Find ALL flights with matching indicative (handles multiple matches)
+            List<JoinedFlightData> candidateFlights = flightRepository.findAllByIndicative(indicativeSafe);
+            
+            if (candidateFlights.isEmpty()) {
+                logger.debug("Received tracking data for unknown flight indicative: {} - no existing flight found", indicativeSafe);
+                continue;
+            }
+            
+            if (candidateFlights.size() == 1) {
+                // Simple case: only one flight with this indicative
+                JoinedFlightData targetFlight = candidateFlights.get(0);
+                updatedCount += updateFlightWithTrackingPoints(targetFlight, newPoints, "single-match=" + indicativeSafe, packetTimestamp);
+                logger.info("Added {} tracking points to flight {} (single match)", newPoints.size(), indicativeSafe);
             } else {
-                // No matching FlightIntention in this packet - skip to prevent cross-packet reassignment
-                logger.debug("Tracking data for {} has no matching FlightIntention in this packet - skipping to prevent reassignment", indicativeSafe);
+                // Complex case: multiple flights with same indicative - need disambiguation
+                JoinedFlightData bestMatch = disambiguateFlights(candidateFlights, newPoints, packetTimestamp, indicativeSafe);
+                if (bestMatch != null) {
+                    updatedCount += updateFlightWithTrackingPoints(bestMatch, newPoints, "disambiguated=" + indicativeSafe, packetTimestamp);
+                    logger.info("Added {} tracking points to flight {} (disambiguated from {} candidates)", 
+                        newPoints.size(), indicativeSafe, candidateFlights.size());
+                } else {
+                    logger.warn("Could not disambiguate between {} flights with indicative {}", 
+                        candidateFlights.size(), indicativeSafe);
+                }
             }
         }
         
         return updatedCount;
+    }
+    
+    /**
+     * Disambiguate between multiple flights with the same indicative
+     * Uses timestamp-based matching to assign tracking points to the correct flight
+     */
+    private JoinedFlightData disambiguateFlights(List<JoinedFlightData> candidateFlights, 
+                                               List<RealPathPoint> newPoints, 
+                                               String packetTimestamp,
+                                               String indicative) {
+        
+        logger.debug("Disambiguating between {} flights with indicative {}", candidateFlights.size(), indicative);
+        
+        // Strategy 1: Find flight with time window that matches packet timestamp
+        // All tracking points in the same packet have the same timestamp (packet timestamp)
+        if (packetTimestamp != null) {
+            try {
+                long trackingTimestamp = parseTimestamp(packetTimestamp);
+                
+                for (JoinedFlightData flight : candidateFlights) {
+                    if (isTrackingPointWithinFlightTimeWindow(flight, trackingTimestamp)) {
+                        logger.debug("Selected flight {} - packet timestamp {} is within flight time window", 
+                            flight.getId(), trackingTimestamp);
+                        return flight;
+                    }
+                }
+                
+                // Strategy 2: Find flight with closest time window (with tolerance)
+                JoinedFlightData closestFlight = findFlightWithClosestTimeWindow(candidateFlights, trackingTimestamp);
+                if (closestFlight != null) {
+                    logger.debug("Selected flight {} - closest time window to packet timestamp {}", 
+                        closestFlight.getId(), trackingTimestamp);
+                    return closestFlight;
+                }
+            } catch (Exception e) {
+                logger.debug("Could not parse packet timestamp {}: {}", packetTimestamp, e.getMessage());
+            }
+        }
+        
+        // Strategy 3: Select most recently updated flight (closest to current packet time)
+        if (packetTimestamp != null) {
+            JoinedFlightData mostRecent = candidateFlights.stream()
+                .filter(f -> f.getLastPacketTimestamp() != null)
+                .max((f1, f2) -> f1.getLastPacketTimestamp().compareTo(f2.getLastPacketTimestamp()))
+                .orElse(null);
+            
+            if (mostRecent != null) {
+                logger.debug("Selected flight {} - most recently updated ({})", 
+                    mostRecent.getId(), mostRecent.getLastPacketTimestamp());
+                return mostRecent;
+            }
+        }
+        
+        // Strategy 4: Select flight with fewest tracking points (might be incomplete)
+        JoinedFlightData leastPopulated = candidateFlights.stream()
+            .min((f1, f2) -> Integer.compare(f1.getTotalTrackingPoints(), f2.getTotalTrackingPoints()))
+            .orElse(null);
+        
+        if (leastPopulated != null) {
+            logger.debug("Selected flight {} - fewest tracking points ({})", 
+                leastPopulated.getId(), leastPopulated.getTotalTrackingPoints());
+            return leastPopulated;
+        }
+        
+        // Fallback: return first flight
+        JoinedFlightData fallback = candidateFlights.get(0);
+        logger.warn("Using fallback selection for indicative {} - selected flight {}", indicative, fallback.getId());
+        return fallback;
+    }
+    
+    /**
+     * Check if a tracking point timestamp falls within a flight's time window
+     */
+    private boolean isTrackingPointWithinFlightTimeWindow(JoinedFlightData flight, long trackingTimestamp) {
+        try {
+            // Parse flight plan date (departure time)
+            long flightPlanTime = parseTimestamp(flight.getFlightPlanDate());
+            
+            // Parse current date time of arrival
+            long arrivalTime = parseTimestamp(flight.getCurrentDateTimeOfArrival());
+            
+            // Check if tracking timestamp is within the flight window
+            return trackingTimestamp >= flightPlanTime && trackingTimestamp <= arrivalTime;
+            
+        } catch (Exception e) {
+            logger.debug("Could not parse flight times for flight {}: {}", flight.getId(), e.getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Find the flight with the time window closest to the tracking point timestamp
+     * Uses tolerance to allow tracking points slightly outside the flight window
+     */
+    private JoinedFlightData findFlightWithClosestTimeWindow(List<JoinedFlightData> candidateFlights, long trackingTimestamp) {
+        final long TOLERANCE_MS = 30 * 60 * 1000; // 30 minutes tolerance
+        
+        JoinedFlightData closestFlight = null;
+        long smallestDistance = Long.MAX_VALUE;
+        
+        for (JoinedFlightData flight : candidateFlights) {
+            try {
+                long flightPlanTime = parseTimestamp(flight.getFlightPlanDate());
+                long arrivalTime = parseTimestamp(flight.getCurrentDateTimeOfArrival());
+                
+                long distance;
+                if (trackingTimestamp < flightPlanTime) {
+                    // Before flight window
+                    distance = flightPlanTime - trackingTimestamp;
+                } else if (trackingTimestamp > arrivalTime) {
+                    // After flight window
+                    distance = trackingTimestamp - arrivalTime;
+                } else {
+                    // Within flight window
+                    distance = 0;
+                }
+                
+                // Only consider flights within tolerance
+                if (distance <= TOLERANCE_MS && distance < smallestDistance) {
+                    smallestDistance = distance;
+                    closestFlight = flight;
+                }
+                
+            } catch (Exception e) {
+                logger.debug("Could not parse flight times for flight {}: {}", flight.getId(), e.getMessage());
+            }
+        }
+        
+        return closestFlight;
+    }
+    
+    /**
+     * Parse timestamp string to milliseconds
+     * Handles various timestamp formats used in the flight data
+     */
+    private long parseTimestamp(String timestampStr) {
+        if (timestampStr == null || timestampStr.trim().isEmpty()) {
+            throw new IllegalArgumentException("Timestamp string is null or empty");
+        }
+        
+        try {
+            // Try parsing as ISO format first (e.g., "2025-07-11T00:00:00.000+0000")
+            return java.time.Instant.parse(timestampStr.replace("+0000", "Z")).toEpochMilli();
+        } catch (Exception e) {
+            try {
+                // Try parsing as long value
+                return Long.parseLong(timestampStr);
+            } catch (NumberFormatException nfe) {
+                throw new IllegalArgumentException("Could not parse timestamp: " + timestampStr, nfe);
+            }
+        }
     }
     
     /**
@@ -164,20 +330,20 @@ public class StreamingFlightService {
             allTrackingPoints = new ArrayList<>();
         }
         
-        // Create a set of existing coordinate+indicativeSafe combinations for deduplication
-        Set<String> existingCoordinateKeys = allTrackingPoints.stream()
-                .map(point -> createCoordinateKey(point.getLatitude(), point.getLongitude(), point.getIndicativeSafe()))
+        // Enhanced deduplication: Use timestamp + coordinates + indicativeSafe for better uniqueness
+        Set<String> existingTrackingKeys = allTrackingPoints.stream()
+                .map(point -> createTimestampCoordinateKey(point.getTimestamp(), point.getLatitude(), point.getLongitude(), point.getIndicativeSafe()))
                 .collect(Collectors.toSet());
         
-        // Filter out tracking points that already exist (based on lat+lon+indicativeSafe)
+        // Filter out tracking points that already exist (based on timestamp+coordinates+indicativeSafe)
         List<TrackingPoint> uniqueNewPoints = newTrackingPoints.stream()
-                .filter(point -> !existingCoordinateKeys.contains(
-                    createCoordinateKey(point.getLatitude(), point.getLongitude(), point.getIndicativeSafe())
+                .filter(point -> !existingTrackingKeys.contains(
+                    createTimestampCoordinateKey(point.getTimestamp(), point.getLatitude(), point.getLongitude(), point.getIndicativeSafe())
                 ))
                 .collect(Collectors.toList());
         
         if (uniqueNewPoints.isEmpty()) {
-            logger.debug("No new tracking points to add for flight {}", identifier);
+            logger.debug("No new tracking points to add for flight {} (all timestamp+coordinate combinations already exist)", identifier);
             return 0; // No update needed
         }
         
@@ -203,7 +369,20 @@ public class StreamingFlightService {
     }
 
     /**
-     * Create a unique key for coordinate+indicativeSafe combination
+     * Create a unique key for timestamp + coordinates + indicativeSafe combination
+     * This prevents duplicate tracking points based on time and location
+     */
+    private String createTimestampCoordinateKey(long timestamp, double latitude, double longitude, String indicativeSafe) {
+        // Round coordinates to 6 decimal places (~1 meter precision) to handle floating point precision issues
+        double roundedLat = Math.round(latitude * 1000000.0) / 1000000.0;
+        double roundedLon = Math.round(longitude * 1000000.0) / 1000000.0;
+        return String.format("%d,%.6f,%.6f,%s", timestamp, roundedLat, roundedLon, 
+                indicativeSafe != null ? indicativeSafe : "");
+    }
+
+    /**
+     * Create a unique key for coordinate+indicativeSafe combination (legacy method)
+     * Keeping this for the cleanup method
      */
     private String createCoordinateKey(double latitude, double longitude, String indicativeSafe) {
         // Round coordinates to 6 decimal places (~1 meter precision) to handle floating point precision issues
@@ -282,6 +461,50 @@ public class StreamingFlightService {
     }
     
     /**
+     * Analyze duplicate indicatives in the database
+     * This helps identify data quality issues with multiple flights having same call signs
+     */
+    public DuplicateIndicativeAnalysis analyzeDuplicateIndicatives() {
+        List<JoinedFlightData> allFlights = flightRepository.findAll();
+        
+        // Group flights by indicative
+        Map<String, List<JoinedFlightData>> flightsByIndicative = allFlights.stream()
+                .filter(f -> f.getIndicative() != null && !f.getIndicative().trim().isEmpty())
+                .collect(Collectors.groupingBy(f -> f.getIndicative().trim()));
+        
+        // Find duplicates
+        Map<String, List<JoinedFlightData>> duplicates = flightsByIndicative.entrySet().stream()
+                .filter(entry -> entry.getValue().size() > 1)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        
+        int totalDuplicateIndicatives = duplicates.size();
+        int totalAffectedFlights = duplicates.values().stream()
+                .mapToInt(List::size)
+                .sum();
+        
+        logger.info("=== DUPLICATE INDICATIVE ANALYSIS ===");
+        logger.info("Total unique indicatives: {}", flightsByIndicative.size());
+        logger.info("Duplicate indicatives found: {}", totalDuplicateIndicatives);
+        logger.info("Total flights affected: {}", totalAffectedFlights);
+        
+        if (!duplicates.isEmpty()) {
+            logger.warn("🚨 DUPLICATE INDICATIVES DETECTED! This could cause tracking point contamination:");
+            duplicates.entrySet().stream()
+                    .limit(10) // Show first 10 duplicates
+                    .forEach(entry -> {
+                        String indicative = entry.getKey();
+                        List<JoinedFlightData> flights = entry.getValue();
+                        logger.warn("  - {}: {} flights (IDs: {})", 
+                                indicative, 
+                                flights.size(),
+                                flights.stream().map(JoinedFlightData::getId).collect(Collectors.joining(", ")));
+                    });
+        }
+        
+        return new DuplicateIndicativeAnalysis(totalDuplicateIndicatives, totalAffectedFlights, duplicates);
+    }
+    
+    /**
      * Result of processing operation
      */
     public static class ProcessingResult {
@@ -317,5 +540,27 @@ public class StreamingFlightService {
         public long getTotalFlights() { return totalFlights; }
         public long getFlightsWithTracking() { return flightsWithTracking; }
         public int getTotalTrackingPoints() { return totalTrackingPoints; }
+    }
+    
+    /**
+     * Analysis of duplicate indicatives in the database
+     */
+    public static class DuplicateIndicativeAnalysis {
+        private final int duplicateIndicatives;
+        private final int affectedFlights;
+        private final Map<String, List<JoinedFlightData>> duplicateDetails;
+        
+        public DuplicateIndicativeAnalysis(int duplicateIndicatives, int affectedFlights, 
+                                         Map<String, List<JoinedFlightData>> duplicateDetails) {
+            this.duplicateIndicatives = duplicateIndicatives;
+            this.affectedFlights = affectedFlights;
+            this.duplicateDetails = duplicateDetails;
+        }
+        
+        public int getDuplicateIndicatives() { return duplicateIndicatives; }
+        public int getAffectedFlights() { return affectedFlights; }
+        public Map<String, List<JoinedFlightData>> getDuplicateDetails() { return duplicateDetails; }
+        
+        public boolean hasDuplicates() { return duplicateIndicatives > 0; }
     }
 } 

@@ -115,111 +115,26 @@ curl http://localhost:8080/api/flights/stats
 | Method | Endpoint | Description | Input | Use Case |
 |--------|----------|-------------|-------|----------|
 | `POST` | `/api/flights/process-packet` | Process single ReplayPath packet | Single `ReplayPath` object | Real-time streaming |
-| `POST` | `/api/flights/process-batch-packets` | Process multiple ReplayPath packets | Array of `ReplayPath` objects | **Efficient batch processing** |
 | `POST` | `/api/flights/process-batch` | Process ReplayData (legacy) | Single `ReplayData` object | Testing with old JSON files |
 | `GET` | `/api/flights/stats` | Get flight statistics | None | Monitoring |
 | `GET` | `/api/flights/health` | Health check | None | Health monitoring |
+| `GET` | `/api/flights/analyze-duplicates` | Analyze duplicate indicatives | None | Data quality monitoring |
+| `POST` | `/api/flights/cleanup-duplicates` | Clean up duplicate tracking points | None | Maintenance |
 
 ### Important API Notes
 
-- ** Production**: Use `/process-batch-packets` for efficient batch processing
-- ** Real-time**: Use `/process-packet` for individual packet streaming
-- ** Testing**: Use `/process-batch` only for legacy JSON file testing
-- ** JSON Order**: Property order in JSON doesn't matter - fields matched by name
-- ** Time Format**: `time` field accepts String format (timestamps, dates, etc.)
+- **Production**: Use `/process-packet` for real-time single packet processing
+- **Testing**: Use `/process-batch` only for legacy JSON file testing
+- **JSON Order**: Property order in JSON doesn't matter - fields matched by name
+- **Time Format**: `time` field accepts String format (timestamps, dates, etc.)
 
 ##  Integration Examples
 
-### Option 1: Batch Processing (Recommended for PathVoGenerator)
-
-**Updated PathVoGenerator Integration:**
+### Option 1: Real-Time Streaming (Recommended for PathVoGenerator)
 
 ```java
 @Test
-public void _01_runBatch() throws Exception {
-    // 1) Stream all packets for a specific date
-    var streamPackets = repo.streamPackets(LocalDate.of(2025, 7, 11));
-    
-    // 2) HTTP client for calling your streaming API
-    HttpClient httpClient = HttpClient.newHttpClient();
-    ObjectMapper mapper = new ObjectMapper()
-        .registerModule(new JavaTimeModule())
-        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-    
-    // 3) Collect all ReplayPaths
-    List<ReplayPath> allPackets = new ArrayList<>();
-    streamPackets.forEach(packet -> {
-        try {
-            final byte[] value = packet.getValue();
-            final ReplayPath input = ReplaySerializer.input(value);
-            allPackets.add(input);
-        } catch (Exception e) {
-            log.error("Failed to deserialize packet", e);
-        }
-    });
-    
-    log.info("Collected {} packets for batch processing", allPackets.size());
-    
-    // 4) Process in efficient batches of 100
-    int batchSize = 100;
-    AtomicInteger processedCount = new AtomicInteger(0);
-    AtomicInteger errorCount = new AtomicInteger(0);
-    
-    for (int i = 0; i < allPackets.size(); i += batchSize) {
-        int endIndex = Math.min(i + batchSize, allPackets.size());
-        List<ReplayPath> batch = allPackets.subList(i, endIndex);
-        
-        try {
-            // Convert batch to JSON
-            String json = mapper.writeValueAsString(batch);
-            
-            // Send batch to your API using the efficient batch endpoint
-            HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://localhost:8080/api/flights/process-batch-packets"))
-                .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(json))
-                .build();
-            
-            HttpResponse<String> response = httpClient.send(request, 
-                HttpResponse.BodyHandlers.ofString());
-            
-            if (response.statusCode() == 200) {
-                processedCount.addAndGet(batch.size());
-                log.info("Processed batch {}/{} ({} packets)", 
-                    (i / batchSize) + 1, (allPackets.size() + batchSize - 1) / batchSize, batch.size());
-            } else {
-                errorCount.addAndGet(batch.size());
-                log.warn("Error processing batch: {} - {}", 
-                    response.statusCode(), response.body());
-            }
-            
-        } catch (Exception e) {
-            errorCount.addAndGet(batch.size());
-            log.error("Failed to process batch", e);
-        }
-    }
-    
-    log.info("Batch processing completed. Processed: {}, Errors: {}", 
-        processedCount.get(), errorCount.get());
-    
-    // 5) Get final statistics
-    HttpRequest statsRequest = HttpRequest.newBuilder()
-        .uri(URI.create("http://localhost:8080/api/flights/stats"))
-        .GET()
-        .build();
-    
-    HttpResponse<String> statsResponse = httpClient.send(statsRequest, 
-        HttpResponse.BodyHandlers.ofString());
-    
-    log.info("Final database stats: {}", statsResponse.body());
-}
-```
-
-### Option 2: Real-Time Streaming
-
-```java
-@Test
-public void _02_realTimeStreaming() throws Exception {
+public void _01_realTimeStreaming() throws Exception {
     var streamPackets = repo.streamPackets(LocalDate.of(2025, 7, 11));
     
     HttpClient httpClient = HttpClient.newHttpClient();
@@ -271,7 +186,7 @@ public void _02_realTimeStreaming() throws Exception {
 }
 ```
 
-### Option 3: cURL Testing
+### Option 2: cURL Testing
 
 ```bash
 # Test single packet
@@ -298,21 +213,10 @@ curl -X POST http://localhost:8080/api/flights/process-packet \
     ]
   }'
 
-# Test batch processing
-curl -X POST http://localhost:8080/api/flights/process-batch-packets \
+# Test legacy batch processing (for JSON file testing)
+curl -X POST http://localhost:8080/api/flights/process-batch \
   -H "Content-Type: application/json" \
-  -d '[
-    {
-      "time": "1626789600000",
-      "listRealPath": [...],
-      "listFlightIntention": [...]
-    },
-    {
-      "time": "1626789600100",
-      "listRealPath": [...],
-      "listFlightIntention": [...]
-    }
-  ]'
+  -d @inputData/replay2.json
 ```
 
 ##  Database Operations
@@ -613,7 +517,7 @@ project/
 
 ##  Next Steps
 
-1. **Start with batch processing** using `/process-batch-packets` endpoint
+1. **Start with single packet processing** using `/process-packet` endpoint
 2. **Test with small datasets** first (100-1000 packets)
 3. **Monitor performance** using stats endpoint and database queries
 4. **Scale up batch sizes** based on performance

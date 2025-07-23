@@ -104,14 +104,15 @@ mvn exec:java -Dexec.mainClass="com.example.App"
 | Method | Endpoint | Description | Input Format |
 |--------|----------|-------------|--------------|
 | `POST` | `/api/flights/process-packet` | Process single ReplayPath packet | Single `ReplayPath` object |
-| `POST` | `/api/flights/process-batch-packets` | Process multiple ReplayPath packets efficiently | Array of `ReplayPath` objects |
 | `POST` | `/api/flights/process-batch` | Process batch ReplayData (legacy, for testing) | Single `ReplayData` object |
 | `GET` | `/api/flights/stats` | Get flight statistics | None |
 | `GET` | `/api/flights/health` | Health check | None |
+| `GET` | `/api/flights/analyze-duplicates` | Analyze duplicate indicatives | None |
+| `POST` | `/api/flights/cleanup-duplicates` | Clean up duplicate tracking points | None |
 
 ### Important API Notes
 
-- **Production**: Use `/process-packet` for real-time single packets or `/process-batch-packets` for efficient batch processing
+- **Production**: Use `/process-packet` for real-time single packet processing
 - **Testing**: Use `/process-batch` for testing with legacy JSON file format
 - **Data Order**: JSON property order doesn't matter - fields are matched by name
 - **Time Format**: The `time` field is stored as a String (can be timestamp or formatted date)
@@ -130,14 +131,6 @@ curl -X POST http://localhost:8080/api/flights/process-packet \
     "listRealPath": [...],
     "listFlightIntention": [...]
   }'
-
-# Process multiple packets efficiently (recommended for batch operations)
-curl -X POST http://localhost:8080/api/flights/process-batch-packets \
-  -H "Content-Type: application/json" \
-  -d '[
-    {"time": "1626789600000", "listRealPath": [...], "listFlightIntention": [...]},
-    {"time": "1626789600100", "listRealPath": [...], "listFlightIntention": [...]}
-  ]'
 
 # Process legacy batch file (for testing)
 curl -X POST http://localhost:8080/api/flights/process-batch \
@@ -201,7 +194,7 @@ db.flights.countDocuments()
 ### Production Data Flow
 In production, data comes through the streaming API:
 - **Real-time packets**: `POST /api/flights/process-packet` - Processes individual `ReplayPath` packets
-- **Batch processing**: `POST /api/flights/process-batch-packets` - Efficiently processes multiple `ReplayPath` packets
+- **Single packet processing**: `POST /api/flights/process-packet` - Processes individual `ReplayPath` packets
 
 
 
