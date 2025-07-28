@@ -7,8 +7,20 @@ import org.springframework.data.mongodb.core.index.Indexed;
 import java.util.List;
 
 /**
- * Joined flight data structure optimized for MongoDB
- * Contains flight intention data with embedded tracking points
+ * MongoDB document representing a complete flight with joined data
+ * 
+ * This model is used for:
+ * - Storing processed flight data in MongoDB
+ * - Combining flight intentions with tracking points
+ * - Providing a unified view of flight information
+ * 
+ * Key features:
+ * - planId is the unique business identifier (indexed)
+ * - Contains embedded tracking points for efficient querying
+ * - Includes metadata for tracking data completeness
+ * - Optimized for MongoDB storage and querying
+ * 
+ * Used primarily by FlightRepository for database operations.
  */
 @Document(collection = "flights")
 @JsonIgnoreProperties(ignoreUnknown = true)

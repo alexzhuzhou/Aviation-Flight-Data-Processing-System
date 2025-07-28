@@ -3,8 +3,20 @@ package com.example.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 /**
- * Represents a single tracking point extracted from RealPathPoint
- * Contains only the essential tracking information
+ * Simplified tracking point extracted from RealPathPoint for internal use
+ * 
+ * This model is used for:
+ * - Storing essential tracking information in JoinedFlightData
+ * - Providing a clean, simplified view of tracking data
+ * - Reducing complexity compared to the raw RealPathPoint structure
+ * 
+ * Key features:
+ * - Contains only essential tracking fields (position, speed, level)
+ * - Includes timestamp for temporal analysis
+ * - Extracted from RealPathPoint during data processing
+ * - Optimized for MongoDB storage and querying
+ * 
+ * Used primarily by StreamingFlightService for data processing and storage.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class TrackingPoint {

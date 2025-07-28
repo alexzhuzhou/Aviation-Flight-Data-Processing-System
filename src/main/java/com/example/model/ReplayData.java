@@ -4,7 +4,15 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
 /**
- * Main data model representing the entire replay.json structure
+ * Represents the complete structure of a static replay.json file
+ * 
+ * This model is used for:
+ * - Loading data from static JSON files (batch processing)
+ * - File-based data analysis and testing
+ * - One-time data import operations
+ * 
+ * Contains all flight intentions and tracking points from a single file.
+ * Used primarily by ReplayDataService for file processing.
  */
 public class ReplayData {
     

@@ -5,8 +5,17 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.List;
 
 /**
- * Represents a single ReplayPath packet from the streaming system
- * This matches the structure from the external codebase
+ * Represents a single streaming packet from the real-time flight data system
+ * 
+ * This model is used for:
+ * - Processing real-time streaming data from external systems
+ * - REST API endpoints that receive live flight data
+ * - Continuous data processing in production
+ * 
+ * Key difference from ReplayData: Contains packetStoredTimestamp for tracking
+ * when the packet was received by the external system.
+ * 
+ * Used primarily by StreamingFlightService for real-time processing.
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class ReplayPath {
