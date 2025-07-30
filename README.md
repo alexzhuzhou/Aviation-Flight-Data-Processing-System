@@ -1,23 +1,26 @@
 # Aviation Flight Data Processing System
 
-A comprehensive Java Spring Boot application for processing and analyzing aviation tracking data, featuring both batch processing and real-time streaming capabilities.
+A comprehensive Java Spring Boot application for processing and analyzing aviation tracking data, featuring both batch processing and real-time streaming capabilities, with support for predicted flight data comparison.
 
 ## Overview
 
 This application processes aviation replay data from JSON files and provides real-time streaming capabilities, designed to work with data containing:
 - **Real Path Points** (`listRealPath`) - Real-time aircraft tracking data
 - **Flight Intentions** (`listFlightIntention`) - Planned flight schedules and information
+- **Predicted Flight Data** - Predicted flight routes and timing for comparison with actual data
 - **Timestamp** - Global reference time for the dataset (stored as String)
 
 ## Features
 
 ### Real-Time Streaming (Production)
 - **Live Data Processing**: Process `ReplayPath` packets in real-time via REST API
+- **Predicted Flight Processing**: Process predicted flight data for comparison analysis
 - **Batch Processing**: Efficient batch processing of multiple packets
-- **MongoDB Integration**: Store flight data and tracking points in MongoDB
+- **MongoDB Integration**: Store flight data and tracking points in MongoDB with separate collections
 - **RESTful API**: HTTP endpoints for packet processing and data retrieval
 - **Upsert Operations**: Smart data merging and deduplication
 - **Health Monitoring**: Built-in health checks and statistics endpoints
+- **Data Comparison**: Separate storage for predicted vs actual flight data using planId matching
 
 ### Batch Processing (Development/Testing)
 - **Data Loading**: Parse large JSON replay files efficiently for testing
@@ -39,7 +42,8 @@ This application processes aviation replay data from JSON files and provides rea
 │   │   │   ├── com/example/
 │   │   │   │   ├── StreamingFlightApplication.java  # Spring Boot main class
 │   │   │   │   ├── controller/
-│   │   │   │   │   └── StreamingController.java     # REST API endpoints
+│   │   │   │   │   ├── StreamingController.java     # REST API endpoints
+│   │   │   │   │   └── PredictedFlightController.java # Predicted flights API
 │   │   │   │   ├── model/                           # Data models
 │   │   │   │   │   ├── ReplayData.java              # Batch data container
 │   │   │   │   │   ├── ReplayPath.java              # Streaming packet format
@@ -47,14 +51,19 @@ This application processes aviation replay data from JSON files and provides rea
 │   │   │   │   │   ├── FlightIntention.java         # Flight plan data
 │   │   │   │   │   ├── Kinematic.java               # Position/movement data
 │   │   │   │   │   ├── JoinedFlightData.java        # MongoDB storage format
-│   │   │   │   │   └── TrackingPoint.java           # Individual tracking points
+│   │   │   │   │   ├── TrackingPoint.java           # Individual tracking points
+│   │   │   │   │   ├── PredictedFlightData.java     # Predicted flight data
+│   │   │   │   │   ├── RouteElement.java            # Predicted route elements
+│   │   │   │   │   └── RouteSegment.java            # Predicted route segments
 │   │   │   │   ├── service/                         # Business logic
 │   │   │   │   │   ├── ReplayDataService.java       # Data analysis service
 │   │   │   │   │   ├── StreamingFlightService.java  # Core streaming logic
 │   │   │   │   │   ├── FlightDataJoinService.java   # Data joining service
-│   │   │   │   │   └── DataAnalysisService.java     # Statistical analysis
+│   │   │   │   │   ├── DataAnalysisService.java     # Statistical analysis
+│   │   │   │   │   └── PredictedFlightService.java  # Predicted flight processing
 │   │   │   │   └── repository/
-│   │   │   │       └── FlightRepository.java        # MongoDB repository
+│   │   │   │       ├── FlightRepository.java        # MongoDB repository
+│   │   │   │       └── PredictedFlightRepository.java # Predicted flights repository
 │   │   │   └── resources/
 │   │   │       └── application.yml                  # Configuration
 │   │   └── test/
@@ -101,6 +110,8 @@ mvn exec:java -Dexec.mainClass="com.example.App"
 
 ##  Streaming API Endpoints
 
+### Flight Tracking Endpoints
+
 | Method | Endpoint | Description | Input Format |
 |--------|----------|-------------|--------------|
 | `POST` | `/api/flights/process-packet` | Process single ReplayPath packet | Single `ReplayPath` object |
@@ -110,6 +121,14 @@ mvn exec:java -Dexec.mainClass="com.example.App"
 | `GET` | `/api/flights/analyze-duplicates` | Analyze duplicate indicatives | None |
 | `POST` | `/api/flights/cleanup-duplicates` | Clean up duplicate tracking points | None |
 
+### Predicted Flight Endpoints
+
+| Method | Endpoint | Description | Input Format |
+|--------|----------|-------------|--------------|
+| `POST` | `/api/predicted-flights/process` | Process predicted flight data | Predicted flight JSON object |
+| `GET` | `/api/predicted-flights/stats` | Get predicted flight statistics | None |
+| `GET` | `/api/predicted-flights/health` | Health check for predicted flights service | None |
+
 ### Important API Notes
 
 - **Production**: Use `/process-packet` for real-time single packet processing
@@ -118,6 +137,8 @@ mvn exec:java -Dexec.mainClass="com.example.App"
 - **Time Format**: The `time` field is stored as a String (can be timestamp or formatted date)
 
 ### Example API Usage
+
+#### Flight Tracking API
 
 ```bash
 # Health check
@@ -139,6 +160,29 @@ curl -X POST http://localhost:8080/api/flights/process-batch \
 
 # Get statistics
 curl http://localhost:8080/api/flights/stats
+```
+
+#### Predicted Flights API
+
+```bash
+# Process predicted flight data
+curl -X POST http://localhost:8080/api/predicted-flights/process \
+  -H "Content-Type: application/json" \
+  -d '{
+    "instanceId": 17879345,
+    "routeId": 51435982,
+    "id": 51637804,
+    "indicative": "TAM3886",
+    "time": "[Thu Jul 10 22:25:00 UTC 2025,Fri Jul 11 00:00:00 UTC 2025]",
+    "routeElements": [...],
+    "routeSegments": [...]
+  }'
+
+# Get predicted flight statistics
+curl http://localhost:8080/api/predicted-flights/stats
+
+# Health check for predicted flights
+curl http://localhost:8080/api/predicted-flights/health
 ```
 
 ##  Configuration
@@ -185,8 +229,18 @@ docker exec -it aviation_mongodb mongosh
 # In MongoDB shell
 use aviation_db
 show collections
+
+# View actual flight data
 db.flights.find().limit(5)
 db.flights.countDocuments()
+
+# View predicted flight data
+db.predicted_flights.find().limit(5)
+db.predicted_flights.countDocuments()
+
+# Find flights by planId for comparison
+db.flights.find({"planId": 51637804})
+db.predicted_flights.find({"planId": 51637804})
 ```
 
 
@@ -207,8 +261,11 @@ The application uses strongly-typed Java models:
 - **RealPathPoint**: Individual tracking points with position, speed, flight level
 - **FlightIntention**: Planned flight data with call signs, aircraft types, routes
 - **Kinematic**: Position and movement data including lat/lon coordinates
-- **JoinedFlightData**: Combined flight and tracking data for MongoDB storage
+- **JoinedFlightData**: Combined flight and tracking data for MongoDB storage (flights collection)
 - **TrackingPoint**: Individual tracking data points within flights
+- **PredictedFlightData**: Predicted flight route and timing data for MongoDB storage (predicted_flights collection)
+- **RouteElement**: Individual route elements in predicted flight paths
+- **RouteSegment**: Route segments connecting route elements
 
 ### Key Model Changes
 - **Time Field**: Changed from `long` to `String` to handle various timestamp formats
@@ -239,13 +296,31 @@ mvn test -Dtest=StreamingFlightServiceTest
 
 ### Integration Testing
 ```bash
-# Test with existing data
+# Test with existing flight tracking data
 curl -X POST http://localhost:8080/api/flights/process-batch \
   -H "Content-Type: application/json" \
   -d @inputData/replay2.json
 
-# Check results
+# Check flight tracking results
 curl http://localhost:8080/api/flights/stats
+
+# Test predicted flight processing
+curl -X POST http://localhost:8080/api/predicted-flights/process \
+  -H "Content-Type: application/json" \
+  -d '{
+    "instanceId": 17879345,
+    "routeId": 51435982,
+    "id": 51637804,
+    "indicative": "TAM3886",
+    "time": "[Thu Jul 10 22:25:00 UTC 2025,Fri Jul 11 00:00:00 UTC 2025]",
+    "startPointIndicative": "SBGR",
+    "endPointIndicative": "SBCG",
+    "routeElements": [],
+    "routeSegments": []
+  }'
+
+# Check predicted flights results
+curl http://localhost:8080/api/predicted-flights/stats
 ```
 
 ### Performance Testing
@@ -288,10 +363,11 @@ ENTRYPOINT ["java", "-jar", "/app.jar"]
 
 ### Common Issues
 
-
+1. **Port 8080 already in use**: Change port in `application.yml` or stop other services
 2. **MongoDB connection failed**: Ensure MongoDB is running and accessible
 3. **Compilation errors**: Run `mvn clean compile` after model changes
 4. **Test failures**: Check if test data format matches current model structure
+5. **Predicted flight processing errors**: Verify JSON format includes 'id' field for planId mapping
 
 ### Debug Mode
 Enable debug logging in `application.yml`:

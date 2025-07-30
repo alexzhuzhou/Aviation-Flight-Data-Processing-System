@@ -1,10 +1,10 @@
 # API Documentation
 
-This document provides comprehensive information about the Aviation Replay Data Processor REST API.
+This document provides comprehensive information about the Aviation Replay Data Processor REST API, including both flight tracking and predicted flight endpoints.
 
 ## API Overview
 
-The API provides endpoints for real-time processing of aviation flight tracking data, including packet processing, statistics, and data quality monitoring.
+The API provides endpoints for real-time processing of aviation flight tracking data and predicted flight data, including packet processing, statistics, data quality monitoring, and prediction comparison capabilities.
 
 ### **Base URL**
 - **Development**: `http://localhost:8080`
@@ -14,7 +14,9 @@ The API provides endpoints for real-time processing of aviation flight tracking 
 - **Swagger UI**: `http://localhost:8080/swagger-ui.html`
 - **OpenAPI JSON**: `http://localhost:8080/api-docs`
 
-## Endpoints
+## Flight Tracking Endpoints
+
+These endpoints handle actual flight tracking data and real-time packet processing.
 
 ### **1. Process Streaming Packet** 🚀
 **POST** `/api/flights/process-packet`
@@ -315,6 +317,146 @@ curl -X GET http://localhost:8080/api/flights/health
 3. **Data Quality**: Monitor duplicate analysis for data issues
 4. **Performance**: Use statistics endpoint to monitor processing
 
+## Predicted Flight Endpoints
+
+These endpoints handle predicted flight data for comparison with actual flight performance.
+
+### **1. Process Predicted Flight** 🔮
+**POST** `/api/predicted-flights/process`
+
+Processes predicted flight data containing route elements, segments, and timing predictions.
+
+#### **Request Body**
+```json
+{
+  "instanceId": 17879345,
+  "routeId": 51435982,
+  "distance": null,
+  "routeElements": [
+    {
+      "latitude": -23.43555556,
+      "speedMeterPerSecond": 74.594444,
+      "eetMinutes": 0.0,
+      "id": 169324506,
+      "indicative": "SBGR",
+      "levelMeters": 749.808,
+      "elementType": "AERODROME",
+      "coordinateText": "2326S04628W",
+      "longitude": -46.47305556
+    }
+  ],
+  "id": 51637804,
+  "indicative": "TAM3886",
+  "time": "[Thu Jul 10 22:25:00 UTC 2025,Fri Jul 11 00:00:00 UTC 2025]",
+  "startPointIndicative": "SBGR",
+  "endPointIndicative": "SBCG",
+  "routeSegments": [
+    {
+      "elementBId": 169324507,
+      "elementAId": 169324506,
+      "distance": 11074.472239127741,
+      "id": 107956339
+    }
+  ]
+}
+```
+
+#### **Response**
+```json
+{
+  "success": true,
+  "message": "Successfully processed predicted flight: TAM3886 (planId: 51637804)"
+}
+```
+
+#### **Status Codes**
+- `200` - Predicted flight processed successfully
+- `400` - Invalid request data
+- `500` - Internal server error
+
+---
+
+### **2. Get Predicted Flight Statistics** 📊
+**GET** `/api/predicted-flights/stats`
+
+Retrieves statistics about stored predicted flight data.
+
+#### **Response**
+```json
+{
+  "totalPredictedFlights": 125
+}
+```
+
+#### **Status Codes**
+- `200` - Statistics retrieved successfully
+- `500` - Error retrieving statistics
+
+---
+
+### **3. Predicted Flight Health Check** 💚
+**GET** `/api/predicted-flights/health`
+
+Health check endpoint for the predicted flights service.
+
+#### **Response**
+```
+Predicted Flight Service is running
+```
+
+#### **Status Codes**
+- `200` - Service is healthy
+
+---
+
+## Data Comparison
+
+### **planId Matching**
+Both actual flights and predicted flights use `planId` as the primary key for matching:
+- **Actual Flight Data**: Stored in `flights` collection
+- **Predicted Flight Data**: Stored in `predicted_flights` collection
+- **Comparison**: Use same `planId` to match predicted vs actual performance
+
+### **Example Comparison Query**
+```bash
+# Find actual flight by planId
+curl http://localhost:8080/api/flights/stats
+
+# Find predicted flight by same planId  
+curl http://localhost:8080/api/predicted-flights/stats
+```
+
+## Testing Predicted Flight Endpoints
+
+### **Using cURL**
+
+#### **Process Predicted Flight**
+```bash
+curl -X POST http://localhost:8080/api/predicted-flights/process \
+  -H "Content-Type: application/json" \
+  -d '{
+    "instanceId": 17879345,
+    "routeId": 51435982,
+    "id": 51637804,
+    "indicative": "TAM3886",
+    "time": "[Thu Jul 10 22:25:00 UTC 2025,Fri Jul 11 00:00:00 UTC 2025]",
+    "startPointIndicative": "SBGR",
+    "endPointIndicative": "SBCG",
+    "routeElements": [],
+    "routeSegments": []
+  }'
+```
+
+#### **Get Predicted Flight Statistics**
+```bash
+curl -X GET http://localhost:8080/api/predicted-flights/stats
+```
+
+#### **Health Check**
+```bash
+curl -X GET http://localhost:8080/api/predicted-flights/health
+```
+
 ## Future Enhancements
 
 ### **Planned Features**
@@ -323,7 +465,9 @@ curl -X GET http://localhost:8080/api/flights/health
 3. **Pagination**: Support for large result sets
 4. **Webhooks**: Real-time notifications
 5. **Metrics**: Prometheus metrics endpoint
+6. **Comparison Service**: Direct API endpoints for comparing predicted vs actual flights
+7. **Prediction Analytics**: Accuracy metrics and performance analysis
 
 ### **API Versioning**
 - Current version: `v1`
-- Future versions will use URL versioning: `/api/v2/flights/...` 
+- Future versions will use URL versioning: `/api/v2/flights/...` and `/api/v2/predicted-flights/...` 

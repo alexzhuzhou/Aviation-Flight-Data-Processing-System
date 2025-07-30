@@ -10,6 +10,7 @@ The services are organized by their primary responsibilities:
 | Service | Purpose | Primary Use |
 |---------|---------|-------------|
 | **StreamingFlightService** | Real-time data processing | Production streaming API |
+| **PredictedFlightService** | Predicted flight processing | Prediction data storage and analysis |
 | **FlightDataJoinService** | Data joining and export | Batch processing and export |
 
 ### **2. Data Access Services**
@@ -41,6 +42,24 @@ The services are organized by their primary responsibilities:
 - `cleanupDuplicateTrackingPoints()` - Data cleanup
 
 **Used By**: StreamingController (REST API)
+
+### **PredictedFlightService** 🔮
+**Primary Purpose**: Process predicted flight data for comparison analysis
+
+**Key Features**:
+- Process predicted flight JSON data from external prediction systems
+- Map JSON 'id' field to 'planId' for matching with actual flights
+- Store predicted flight data in MongoDB (predicted_flights collection)
+- Provide statistics for predicted flight data
+- Support future comparison analysis with actual flight performance
+
+**Main Methods**:
+- `processPredictedFlight()` - Main entry point for prediction processing
+- `getStats()` - Predicted flight statistics
+- `findByPlanId()` - Find predicted flight for comparison
+- `existsByPlanId()` - Check if prediction exists
+
+**Used By**: PredictedFlightController (REST API)
 
 ### **ReplayDataService** 📁
 **Primary Purpose**: Load and access replay data from files
@@ -104,7 +123,13 @@ ReplayData    Basic Access        Analysis & Insights    Joined Data
      ↓              ↓                    ↓                      ↓
 StreamingFlightService ← ReplayPath (from API)
      ↓
-MongoDB Storage
+MongoDB Storage (flights collection)
+
+Prediction Input → PredictedFlightService
+     ↓                      ↓
+Predicted Flight JSON   Processing & planId mapping
+     ↓                      ↓
+                    MongoDB Storage (predicted_flights collection)
 ```
 
 ## Service Dependencies
@@ -115,6 +140,7 @@ MongoDB Storage
 
 ### **Database Dependencies**
 - **StreamingFlightService**: Uses FlightRepository for MongoDB operations
+- **PredictedFlightService**: Uses PredictedFlightRepository for MongoDB operations
 
 ### **Model Dependencies**
 - **FlightDataJoinService**: Uses ObjectMapper for JSON operations
@@ -125,9 +151,10 @@ MongoDB Storage
 ### **When to Use Each Service**
 
 1. **For Real-time Processing**: Use `StreamingFlightService`
-2. **For File Loading**: Use `ReplayDataService`
-3. **For Data Analysis**: Use `DataAnalysisService`
-4. **For Data Joining**: Use `FlightDataJoinService`
+2. **For Predicted Flight Processing**: Use `PredictedFlightService`
+3. **For File Loading**: Use `ReplayDataService`
+4. **For Data Analysis**: Use `DataAnalysisService`
+5. **For Data Joining**: Use `FlightDataJoinService`
 
 ### **Service Communication**
 
@@ -139,6 +166,7 @@ MongoDB Storage
 ### **Error Handling**
 
 - **StreamingFlightService**: Logs errors and continues processing
+- **PredictedFlightService**: Returns ProcessingResult with success/failure status
 - **ReplayDataService**: Throws IOException for file issues
 - **DataAnalysisService**: Graceful handling of missing data
 - **FlightDataJoinService**: Returns empty collections for errors
@@ -149,6 +177,11 @@ MongoDB Storage
 - **High Performance**: Optimized for real-time processing
 - **Batch Operations**: Processes multiple flights efficiently
 - **Database Optimization**: Uses indexes for fast lookups
+
+### **PredictedFlightService**
+- **JSON Processing**: Efficient parsing of complex predicted flight data
+- **planId Mapping**: Automatic mapping of JSON 'id' to 'planId' for comparison
+- **Upsert Operations**: Updates existing predictions or creates new ones
 
 ### **DataAnalysisService**
 - **Memory Efficient**: Streams data for large datasets

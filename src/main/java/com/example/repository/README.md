@@ -1,180 +1,196 @@
 # Repository Layer Documentation
 
-This document explains the data access layer of the Aviation Replay Data Processor.
+This document explains the repository layer in the Aviation Replay Data Processor, including both flight tracking and predicted flight repositories.
 
 ## Repository Overview
 
-The repository layer provides a clean abstraction for database operations using Spring Data MongoDB.
+The repositories follow the Spring Data MongoDB pattern and provide data access for different flight data types:
 
-### **Current Repository**
+### **1. Flight Tracking Repository**
+| Repository | Purpose | Collection |
+|------------|---------|------------|
+| **FlightRepository** | Actual flight data operations | `flights` |
 
-| Repository | Purpose | Database | Entity |
-|------------|---------|----------|--------|
-| **FlightRepository** | Flight data operations | MongoDB | JoinedFlightData |
+### **2. Predicted Flight Repository**
+| Repository | Purpose | Collection |
+|------------|---------|------------|
+| **PredictedFlightRepository** | Predicted flight data operations | `predicted_flights` |
 
-## FlightRepository Details
+## Repository Responsibilities
 
-### **Purpose**
-MongoDB repository for managing flight data with joined intentions and tracking points.
+### **FlightRepository** 🛩️
+**Primary Purpose**: MongoDB operations for actual flight tracking data
 
-### **Key Features**
-- **Primary Key**: Uses `planId` as the unique identifier for flights
-- **MongoDB Integration**: Extends `MongoRepository` for automatic CRUD operations
-- **Custom Queries**: Provides specialized methods for flight lookup and disambiguation
-- **Spring Data**: Leverages Spring Data MongoDB for automatic query generation
+**Key Features**:
+- CRUD operations for JoinedFlightData
+- Query by planId (unique identifier)
+- Query by indicative (call sign) with duplicate handling
+- Support for upsert operations in streaming scenarios
 
-### **Available Methods**
+**Main Methods**:
+- `findByPlanId(long planId)` - Find flight by unique planId
+- `existsByPlanId(long planId)` - Check if flight exists
+- `findByIndicative(String indicative)` - Find by call sign (returns first match)
+- `findAllByIndicative(String indicative)` - Find all flights with same call sign
 
-#### **Core CRUD Operations** (inherited from MongoRepository)
-- `save(JoinedFlightData)` - Save or update a flight
-- `findById(String)` - Find by MongoDB document ID
-- `findAll()` - Get all flights
-- `delete(JoinedFlightData)` - Delete a flight
-- `count()` - Count total flights
+**Used By**: StreamingFlightService
 
-#### **Custom Query Methods**
-- `findByPlanId(long planId)` - Find flight by plan ID (unique)
-- `existsByPlanId(long planId)` - Check if flight exists by plan ID
-- `findByIndicative(String indicative)` - Find first flight by call sign
-- `findAllByIndicative(String indicative)` - Find all flights by call sign
+### **PredictedFlightRepository** 🔮
+**Primary Purpose**: MongoDB operations for predicted flight data
 
-### **Usage Patterns**
+**Key Features**:
+- CRUD operations for PredictedFlightData
+- Query by planId for comparison with actual flights
+- Query by indicative and route information
+- Support for prediction updates and analysis
 
-#### **1. Creating New Flights**
+**Main Methods**:
+- `findByPlanId(long planId)` - Find predicted flight for comparison
+- `existsByPlanId(long planId)` - Check if prediction exists
+- `findByIndicative(String indicative)` - Find by call sign
+- `findAllByIndicative(String indicative)` - Find all predictions with same call sign
+- `findByRouteId(long routeId)` - Find predictions by route
+- `findByStartPointIndicativeAndEndPointIndicative()` - Find by route endpoints
+
+**Used By**: PredictedFlightService
+
+## Data Access Patterns
+
+### **planId-Based Queries**
+Both repositories support planId-based queries for data comparison:
+
 ```java
-// Check if flight exists
-Optional<JoinedFlightData> existing = flightRepository.findByPlanId(planId);
-if (existing.isEmpty()) {
-    // Create new flight
-    JoinedFlightData newFlight = new JoinedFlightData(intention);
-    flightRepository.save(newFlight);
-}
+// Find actual flight
+Optional<JoinedFlightData> actualFlight = flightRepository.findByPlanId(planId);
+
+// Find predicted flight for same planId
+Optional<PredictedFlightData> predictedFlight = predictedFlightRepository.findByPlanId(planId);
 ```
 
-#### **2. Updating Existing Flights**
+### **Indicative-Based Queries**
+Both repositories handle indicative (call sign) queries with duplicate awareness:
+
 ```java
-// Find and update
-Optional<JoinedFlightData> flightOpt = flightRepository.findByPlanId(planId);
-if (flightOpt.isPresent()) {
-    JoinedFlightData flight = flightOpt.get();
-    // Update flight data
-    flight.setTrackingPoints(newTrackingPoints);
-    flightRepository.save(flight);
-}
+// Single result (may not be deterministic with duplicates)
+Optional<JoinedFlightData> flight = flightRepository.findByIndicative("ABC123");
+
+// All results (handles duplicates properly)
+List<JoinedFlightData> flights = flightRepository.findAllByIndicative("ABC123");
 ```
 
-#### **3. Disambiguation (Multiple Flights with Same Indicative)**
+### **Existence Checks**
+Both repositories provide efficient existence checking:
+
 ```java
-// Get all flights with same call sign
-List<JoinedFlightData> candidates = flightRepository.findAllByIndicative(indicative);
-if (candidates.size() > 1) {
-    // Apply disambiguation logic
-    JoinedFlightData target = disambiguateFlights(candidates, trackingData);
+// Check if actual flight exists
+boolean actualExists = flightRepository.existsByPlanId(planId);
+
+// Check if prediction exists
+boolean predictionExists = predictedFlightRepository.existsByPlanId(planId);
+```
+
+## MongoDB Collections
+
+### **flights Collection**
+- **Document Type**: JoinedFlightData
+- **Primary Index**: planId (unique)
+- **Secondary Index**: indicative (non-unique, for call sign queries)
+- **Purpose**: Store actual flight tracking data
+
+### **predicted_flights Collection**
+- **Document Type**: PredictedFlightData
+- **Primary Index**: planId (for comparison matching)
+- **Secondary Indexes**: indicative, routeId
+- **Purpose**: Store predicted flight route and timing data
+
+## Data Comparison Queries
+
+### **Finding Matching Data**
+```java
+// Find both actual and predicted data for comparison
+long planId = 51637804;
+
+Optional<JoinedFlightData> actual = flightRepository.findByPlanId(planId);
+Optional<PredictedFlightData> predicted = predictedFlightRepository.findByPlanId(planId);
+
+if (actual.isPresent() && predicted.isPresent()) {
+    // Compare actual vs predicted performance
+    JoinedFlightData actualFlight = actual.get();
+    PredictedFlightData predictedFlight = predicted.get();
+    
+    // Comparison logic here
 }
 ```
 
-## Database Schema
+### **Route-Based Analysis**
+```java
+// Find predictions by route for analysis
+List<PredictedFlightData> routePredictions = 
+    predictedFlightRepository.findByStartPointIndicativeAndEndPointIndicative("SBGR", "SBCG");
 
-### **MongoDB Collection: flights**
-
-```json
-{
-  "_id": "ObjectId",
-  "planId": 12345,
-  "indicative": "ABC123",
-  "aircraftType": "B737",
-  "airline": "TEST",
-  "departureAirport": "SBGR",
-  "arrivalAirport": "SBSP",
-  "flightPlanDate": "2025-01-15",
-  "currentDateTimeOfDeparture": "2025-01-15T10:30:00",
-  "currentDateTimeOfArrival": "2025-01-15T11:45:00",
-  "trackingPoints": [
-    {
-      "seqNum": 1,
-      "timestamp": 1705312200000,
-      "latitude": -23.4356,
-      "longitude": -46.4731,
-      "flightLevel": 350,
-      "trackSpeed": 450,
-      "indicativeSafe": "ABC123"
-    }
-  ],
-  "hasTrackingData": true,
-  "totalTrackingPoints": 15,
-  "lastPacketTimestamp": "2025-01-15T10:35:00"
-}
+// Find actual flights with same route for comparison
+List<JoinedFlightData> actualFlights = 
+    flightRepository.findAllByIndicative("TAM3886");
 ```
-
-### **Indexes**
-- **Primary Index**: `_id` (MongoDB default)
-- **Unique Index**: `planId` (ensures uniqueness)
-- **Secondary Index**: `indicative` (for call sign lookups)
 
 ## Performance Considerations
 
+### **Index Usage**
+- **planId**: Primary key for both collections, ensures fast lookups
+- **indicative**: Secondary index for call sign searches
+- **routeId**: Index on predicted flights for route analysis
+
 ### **Query Optimization**
-- **planId lookups**: Very fast (unique index)
-- **indicative lookups**: Fast (secondary index)
-- **Full collection scans**: Use sparingly for large datasets
+- Use `existsByPlanId()` for existence checks rather than `findByPlanId().isPresent()`
+- Use `findAllByIndicative()` when handling potential duplicates
+- Consider pagination for large result sets
 
 ### **Memory Management**
-- **Large datasets**: Consider pagination for `findAll()` operations
-- **Tracking points**: Embedded documents (no separate collection joins)
+- Repositories return Optional for single results
+- Large queries should be paginated or streamed
+- Consider projection queries for analysis scenarios
 
-### **Best Practices**
-1. **Use planId for unique lookups** (fastest)
-2. **Use indicative for disambiguation** (returns multiple results)
-3. **Avoid full collection scans** in production
-4. **Batch operations** for bulk updates
+## Best Practices
 
-## Error Handling
+### **Repository Usage**
+1. **Use planId for primary lookups** - It's the unique identifier
+2. **Handle indicative duplicates** - Use `findAllByIndicative()` when multiple results expected
+3. **Check existence efficiently** - Use `existsByPlanId()` for boolean checks
+4. **Consider comparison patterns** - Design queries for actual vs predicted analysis
 
-### **Common Scenarios**
-- **Duplicate planId**: Handled by unique constraint
-- **Missing flights**: Use `Optional` return types
-- **Database connection**: Spring Boot auto-configuration
+### **Data Integrity**
+1. **planId consistency** - Ensure same planId used across both collections for comparison
+2. **Null handling** - Always use Optional pattern for safe data access
+3. **Index maintenance** - Ensure indexes support your query patterns
 
-### **Recommended Patterns**
-```java
-// Safe lookup with error handling
-Optional<JoinedFlightData> flight = flightRepository.findByPlanId(planId);
-if (flight.isPresent()) {
-    // Process flight
-} else {
-    // Handle missing flight
-    logger.warn("Flight not found for planId: {}", planId);
-}
-```
-
-## Testing Strategy
-
-### **Unit Tests**
-- **Mock repository** for service layer tests
-- **Test custom query methods** independently
-- **Verify query generation** for custom methods
-
-### **Integration Tests**
-- **Test with real MongoDB** (embedded or test container)
-- **Verify data persistence** and retrieval
-- **Test concurrent operations**
-
-### **Performance Tests**
-- **Test with large datasets** to verify index effectiveness
-- **Monitor query performance** for slow operations
-- **Test bulk operations** for data migration scenarios
+### **Error Handling**
+- Repository methods return Optional for not-found scenarios
+- Use `existsByPlanId()` to avoid unnecessary data loading
+- Handle empty collections gracefully in list operations
 
 ## Future Enhancements
 
-### **Potential Additions**
-1. **Pagination support** for large result sets
-2. **Custom aggregation queries** for analytics
-3. **Audit trail** for data changes
-4. **Soft delete** functionality
-5. **Data archival** strategies
+### **Planned Repository Features**
+1. **Pagination Support**: Spring Data Pageable for large result sets
+2. **Custom Queries**: @Query annotations for complex comparison operations
+3. **Aggregation Support**: MongoDB aggregation pipeline for analytics
+4. **Projection Queries**: Return only required fields for performance
+5. **Batch Operations**: Bulk insert/update operations for large datasets
 
-### **Monitoring**
-- **Query performance metrics**
-- **Database connection pooling**
-- **Index usage statistics**
-- **Storage growth monitoring** 
+### **Comparison Repository**
+Consider creating a dedicated comparison service that uses both repositories:
+```java
+@Service
+public class FlightComparisonService {
+    
+    @Autowired
+    private FlightRepository flightRepository;
+    
+    @Autowired
+    private PredictedFlightRepository predictedFlightRepository;
+    
+    public ComparisonResult compareFlightByPlanId(long planId) {
+        // Implementation for comparing actual vs predicted
+    }
+}
+```

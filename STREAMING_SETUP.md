@@ -2,24 +2,43 @@
 
 ## Overview
 
-This guide explains how to set up the streaming flight data system that processes `ReplayPath` packets in real-time and stores them in MongoDB. The system supports both individual packet processing and efficient batch processing for high-volume scenarios.
+This guide explains how to set up the streaming flight data system that processes both actual flight tracking data (`ReplayPath` packets) and predicted flight data in real-time, storing them in MongoDB. The system supports individual packet processing, efficient batch processing for high-volume scenarios, and prediction comparison capabilities.
 
 ## Data Flow & Architecture
 
 ```
+Actual Flight Data:
 External System (PathVoGenerator/Test Code)
     ↓ HTTP POST requests
 Your REST API (StreamingController)
     ↓ processes packets
 StreamingFlightService
     ↓ upserts data
-MongoDB Database
+MongoDB Database (flights collection)
+
+Predicted Flight Data:
+Prediction System
+    ↓ HTTP POST requests
+Your REST API (PredictedFlightController)
+    ↓ processes predicted flight data
+PredictedFlightService
+    ↓ stores predictions
+MongoDB Database (predicted_flights collection)
 ```
 
 ### Key Data Structures
+
+#### Actual Flight Data
 - **ReplayPath**: Streaming packet format with `time` (String), `listRealPath`, `listFlightIntention`
 - **Flight Linking**: `FlightIntention.indicative` ↔ `RealPathPoint.indicativeSafe` matching
-- **Storage**: `JoinedFlightData` documents in MongoDB with automatic deduplication
+- **Storage**: `JoinedFlightData` documents in MongoDB `flights` collection with automatic deduplication
+
+#### Predicted Flight Data
+- **PredictedFlightData**: Predicted flight route and timing data
+- **RouteElement**: Individual route points with coordinates, speed, and timing predictions
+- **RouteSegment**: Route connections with distance calculations
+- **Storage**: `PredictedFlightData` documents in MongoDB `predicted_flights` collection
+- **Comparison Key**: `planId` used to match predicted flights with actual flight performance
 
 ##  Prerequisites
 
@@ -112,6 +131,8 @@ curl http://localhost:8080/api/flights/stats
 
 ##  API Endpoints Reference
 
+### Flight Tracking Endpoints
+
 | Method | Endpoint | Description | Input | Use Case |
 |--------|----------|-------------|-------|----------|
 | `POST` | `/api/flights/process-packet` | Process single ReplayPath packet | Single `ReplayPath` object | Real-time streaming |
@@ -121,12 +142,27 @@ curl http://localhost:8080/api/flights/stats
 | `GET` | `/api/flights/analyze-duplicates` | Analyze duplicate indicatives | None | Data quality monitoring |
 | `POST` | `/api/flights/cleanup-duplicates` | Clean up duplicate tracking points | None | Maintenance |
 
+### Predicted Flight Endpoints
+
+| Method | Endpoint | Description | Input | Use Case |
+|--------|----------|-------------|-------|----------|
+| `POST` | `/api/predicted-flights/process` | Process predicted flight data | Predicted flight JSON object | Prediction data storage |
+| `GET` | `/api/predicted-flights/stats` | Get predicted flight statistics | None | Prediction monitoring |
+| `GET` | `/api/predicted-flights/health` | Health check for predictions | None | Service monitoring |
+
 ### Important API Notes
 
+#### Flight Tracking
 - **Production**: Use `/process-packet` for real-time single packet processing
 - **Testing**: Use `/process-batch` only for legacy JSON file testing
 - **JSON Order**: Property order in JSON doesn't matter - fields matched by name
 - **Time Format**: `time` field accepts String format (timestamps, dates, etc.)
+
+#### Predicted Flights
+- **Data Format**: Accepts complex JSON with nested `routeElements` and `routeSegments`
+- **planId Mapping**: JSON `id` field automatically mapped to `planId` for comparison
+- **Comparison Ready**: Data stored for future comparison with actual flight performance
+- **Upsert Behavior**: Updates existing predictions or creates new ones based on planId
 
 ##  Integration Examples
 
@@ -186,7 +222,7 @@ public void _01_realTimeStreaming() throws Exception {
 }
 ```
 
-### Option 2: cURL Testing
+### Option 2: Predicted Flight Integration\n\n```java\n@Test\npublic void _02_predictedFlightStreaming() throws Exception {\n    HttpClient httpClient = HttpClient.newHttpClient();\n    ObjectMapper mapper = new ObjectMapper();\n    \n    // Sample predicted flight data\n    String predictedFlightJson = \"\"\"{\n        \"instanceId\": 17879345,\n        \"routeId\": 51435982,\n        \"distance\": null,\n        \"routeElements\": [\n            {\n                \"latitude\": -23.43555556,\n                \"speedMeterPerSecond\": 74.594444,\n                \"eetMinutes\": 0.0,\n                \"id\": 169324506,\n                \"indicative\": \"SBGR\",\n                \"levelMeters\": 749.808,\n                \"elementType\": \"AERODROME\",\n                \"coordinateText\": \"2326S04628W\",\n                \"longitude\": -46.47305556\n            }\n        ],\n        \"id\": 51637804,\n        \"indicative\": \"TAM3886\",\n        \"time\": \"[Thu Jul 10 22:25:00 UTC 2025,Fri Jul 11 00:00:00 UTC 2025]\",\n        \"startPointIndicative\": \"SBGR\",\n        \"endPointIndicative\": \"SBCG\",\n        \"routeSegments\": [\n            {\n                \"elementBId\": 169324507,\n                \"elementAId\": 169324506,\n                \"distance\": 11074.472239127741,\n                \"id\": 107956339\n            }\n        ]\n    }\"\"\";\n    \n    // Send predicted flight data\n    HttpRequest request = HttpRequest.newBuilder()\n        .uri(URI.create(\"http://localhost:8080/api/predicted-flights/process\"))\n        .header(\"Content-Type\", \"application/json\")\n        .POST(HttpRequest.BodyPublishers.ofString(predictedFlightJson))\n        .build();\n    \n    HttpResponse<String> response = httpClient.send(request, \n        HttpResponse.BodyHandlers.ofString());\n    \n    if (response.statusCode() == 200) {\n        log.info(\"Predicted flight processed successfully: {}\", response.body());\n        \n        // Verify the prediction was stored\n        HttpRequest statsRequest = HttpRequest.newBuilder()\n            .uri(URI.create(\"http://localhost:8080/api/predicted-flights/stats\"))\n            .GET()\n            .build();\n        \n        HttpResponse<String> statsResponse = httpClient.send(statsRequest, \n            HttpResponse.BodyHandlers.ofString());\n        \n        log.info(\"Predicted flights stats: {}\", statsResponse.body());\n    } else {\n        log.error(\"Failed to process predicted flight: {} - {}\", \n            response.statusCode(), response.body());\n    }\n}\n```\n\n### Option 3: cURL Testing
 
 ```bash
 # Test single packet
@@ -217,6 +253,21 @@ curl -X POST http://localhost:8080/api/flights/process-packet \
 curl -X POST http://localhost:8080/api/flights/process-batch \
   -H "Content-Type: application/json" \
   -d @inputData/replay2.json
+
+# Test predicted flight processing
+curl -X POST http://localhost:8080/api/predicted-flights/process \
+  -H "Content-Type: application/json" \
+  -d '{
+    "instanceId": 17879345,
+    "routeId": 51435982,
+    "id": 51637804,
+    "indicative": "TAM3886",
+    "time": "[Thu Jul 10 22:25:00 UTC 2025,Fri Jul 11 00:00:00 UTC 2025]",
+    "startPointIndicative": "SBGR",
+    "endPointIndicative": "SBCG",
+    "routeElements": [],
+    "routeSegments": []
+  }'
 ```
 
 ##  Database Operations
@@ -248,19 +299,28 @@ use test
 // List collections
 show collections
 
-// Should show: flights
+// Should show: flights, predicted_flights
 
-// View data
+// View actual flight data
 db.flights.find().limit(5)
+
+// View predicted flight data
+db.predicted_flights.find().limit(5)
 
 // Count documents
 db.flights.countDocuments()
+db.predicted_flights.countDocuments()
 
 // Find by indicative
 db.flights.find({"indicative": "GOL1234"})
+db.predicted_flights.find({"indicative": "TAM3886"})
 
 // Check flights with tracking data
 db.flights.find({"hasTrackingData": true}).limit(3)
+
+// Find matching flight and prediction by planId
+db.flights.find({"planId": 51637804})
+db.predicted_flights.find({"planId": 51637804})
 
 // Get statistics
 db.flights.aggregate([
@@ -306,7 +366,11 @@ db.flights.aggregate([
 ### 1. Service Health Check
 
 ```bash
+# Check flight tracking service
 curl http://localhost:8080/api/flights/health
+
+# Check predicted flights service
+curl http://localhost:8080/api/predicted-flights/health
 ```
 
 
@@ -314,7 +378,7 @@ curl http://localhost:8080/api/flights/health
 ### 3. Verify Data Processing
 
 ```bash
-# Check statistics after processing
+# Check flight tracking statistics
 curl http://localhost:8080/api/flights/stats
 
 # Expected response:
@@ -322,6 +386,14 @@ curl http://localhost:8080/api/flights/stats
   "totalFlights": 150,
   "flightsWithTracking": 120,
   "totalTrackingPoints": 2847
+}
+
+# Check predicted flights statistics
+curl http://localhost:8080/api/predicted-flights/stats
+
+# Expected response:
+{
+  "totalPredictedFlights": 25
 }
 ```
 
@@ -331,8 +403,18 @@ curl http://localhost:8080/api/flights/stats
 # Connect to database and verify
 docker exec -it aviation_mongodb mongosh
 use aviation_db
+
+# Check both collections
 db.flights.countDocuments()
+db.predicted_flights.countDocuments()
+
+# View sample documents
 db.flights.findOne()
+db.predicted_flights.findOne()
+
+# Verify planId matching for comparison
+db.flights.find({"planId": 51637804})
+db.predicted_flights.find({"planId": 51637804})
 ```
 
 ##  Performance Optimization
@@ -354,13 +436,21 @@ db.flights.findOne()
 ### Monitoring
 
 ```bash
-# Check processing statistics
+# Check flight tracking statistics
 curl http://localhost:8080/api/flights/stats
+
+# Check predicted flights statistics
+curl http://localhost:8080/api/predicted-flights/stats
 
 # Monitor MongoDB performance
 docker exec -it aviation_mongodb mongosh
 use aviation_db
 db.runCommand({serverStatus: 1})
+
+# Check collection sizes
+db.stats()
+db.flights.stats()
+db.predicted_flights.stats()
 ```
 
 ## Troubleshooting
@@ -517,10 +607,21 @@ project/
 
 ##  Next Steps
 
+### Flight Tracking
 1. **Start with single packet processing** using `/process-packet` endpoint
 2. **Test with small datasets** first (100-1000 packets)
 3. **Monitor performance** using stats endpoint and database queries
 4. **Scale up batch sizes** based on performance
-5. **Add authentication** for production deployment
-6. **Consider horizontal scaling** for very high volumes
+
+### Predicted Flights
+1. **Test predicted flight processing** using `/predicted-flights/process` endpoint
+2. **Verify planId mapping** between predicted and actual flights
+3. **Monitor prediction storage** using predicted flights stats endpoint
+4. **Prepare for comparison analysis** by ensuring consistent planId usage
+
+### Production
+1. **Add authentication** for production deployment
+2. **Consider horizontal scaling** for very high volumes
+3. **Implement comparison service** to analyze predicted vs actual performance
+4. **Set up monitoring** for both flight tracking and prediction accuracy
 
