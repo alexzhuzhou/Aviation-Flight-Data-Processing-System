@@ -1,6 +1,7 @@
 package com.example.service;
 
 import com.example.model.PredictedFlightData;
+import com.example.model.BatchProcessingResult;
 import com.example.repository.PredictedFlightRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -8,8 +9,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Service for processing predicted flight data
@@ -33,7 +39,7 @@ public class PredictedFlightService {
     
     /**
      * Process predicted flight data from JSON and store in database
-     * Maps the JSON 'id' field to 'planId' for future matching with actual flights
+     * Uses instanceId for future matching with actual flights' planId
      */
     public ProcessingResult processPredictedFlight(JsonNode jsonData) {
         try {
@@ -43,22 +49,19 @@ public class PredictedFlightService {
             // Convert JSON to PredictedFlightData object
             PredictedFlightData predictedFlight = objectMapper.treeToValue(jsonData, PredictedFlightData.class);
             
-            // Map the JSON 'id' field to 'planId' for matching with actual flights
-            if (jsonData.has("id")) {
-                long jsonId = jsonData.get("id").asLong();
-                predictedFlight.setPlanId(jsonId);
-                logger.debug("Mapped JSON id {} to planId for predicted flight {}", 
-                    jsonId, predictedFlight.getIndicative());
+            // Validate that instanceId exists
+            if (predictedFlight.getInstanceId() == 0) {
+                return new ProcessingResult(false, "Missing instanceId for predicted flight: " + predictedFlight.getIndicative());
             }
             
             // Check if predicted flight already exists
-            if (predictedFlightRepository.existsByPlanId(predictedFlight.getPlanId())) {
-                logger.warn("Predicted flight with planId {} already exists, updating...", 
-                    predictedFlight.getPlanId());
+            if (predictedFlightRepository.existsByInstanceId(predictedFlight.getInstanceId())) {
+                logger.warn("Predicted flight with instanceId {} already exists, updating...", 
+                    predictedFlight.getInstanceId());
                 
                 // Update existing record
                 Optional<PredictedFlightData> existingOpt = 
-                    predictedFlightRepository.findByPlanId(predictedFlight.getPlanId());
+                    predictedFlightRepository.findByInstanceId(predictedFlight.getInstanceId());
                 
                 if (existingOpt.isPresent()) {
                     PredictedFlightData existing = existingOpt.get();
@@ -69,15 +72,15 @@ public class PredictedFlightService {
             // Save to database
             PredictedFlightData saved = predictedFlightRepository.save(predictedFlight);
             
-            logger.info("Successfully stored predicted flight: planId={}, indicative={}, routeElements={}, routeSegments={}", 
-                saved.getPlanId(), 
+            logger.info("Successfully stored predicted flight: instanceId={}, indicative={}, routeElements={}, routeSegments={}", 
+                saved.getInstanceId(), 
                 saved.getIndicative(),
                 saved.getRouteElements() != null ? saved.getRouteElements().size() : 0,
                 saved.getRouteSegments() != null ? saved.getRouteSegments().size() : 0);
             
             return new ProcessingResult(true, 
                 "Successfully processed predicted flight: " + saved.getIndicative() + 
-                " (planId: " + saved.getPlanId() + ")");
+                " (instanceId: " + saved.getInstanceId() + ")");
             
         } catch (Exception e) {
             logger.error("Error processing predicted flight data", e);
@@ -102,17 +105,127 @@ public class PredictedFlightService {
     }
     
     /**
-     * Find predicted flight by planId (for comparison with actual flights)
+     * Find predicted flight by instanceId (for comparison with actual flights via planId)
      */
-    public Optional<PredictedFlightData> findByPlanId(long planId) {
-        return predictedFlightRepository.findByPlanId(planId);
+    public Optional<PredictedFlightData> findByInstanceId(long instanceId) {
+        return predictedFlightRepository.findByInstanceId(instanceId);
     }
     
     /**
-     * Check if predicted flight exists for given planId
+     * Check if predicted flight exists for given instanceId
      */
-    public boolean existsByPlanId(long planId) {
-        return predictedFlightRepository.existsByPlanId(planId);
+    public boolean existsByInstanceId(long instanceId) {
+        return predictedFlightRepository.existsByInstanceId(instanceId);
+    }
+    
+    /**
+     * Process multiple predicted flights in batch with optimal performance
+     * Handles large batches efficiently with proper error handling and skip logic
+     */
+    @Transactional
+    public BatchProcessingResult processBatch(List<PredictedFlightData> predictedFlights) {
+        if (predictedFlights == null || predictedFlights.isEmpty()) {
+            return new BatchProcessingResult(0, 0, 0, 0, 
+                "No predicted flights to process");
+        }
+        
+        int totalReceived = predictedFlights.size();
+        int processed = 0;
+        int skipped = 0;
+        int failed = 0;
+        List<String> errors = new ArrayList<>();
+        List<String> skippedDetails = new ArrayList<>();
+        Map<String, Integer> skipReasons = new HashMap<>();
+        
+        logger.info("Starting batch processing of {} predicted flights", totalReceived);
+        
+        // Determine optimal batch size for database operations
+        final int OPTIMAL_BATCH_SIZE = 500;
+        List<PredictedFlightData> toSave = new ArrayList<>();
+        
+        for (PredictedFlightData predictedFlight : predictedFlights) {
+            try {
+                // Validate required fields
+                if (predictedFlight.getInstanceId() == 0) {
+                    failed++;
+                    String error = "PredictedFlight missing instanceId: " + predictedFlight.getIndicative();
+                    errors.add(error);
+                    continue;
+                }
+                
+                // Check if already exists (skip logic as per your requirement)
+                if (predictedFlightRepository.existsByInstanceId(predictedFlight.getInstanceId())) {
+                    skipped++;
+                    String skipDetail = String.format("Skipped instanceId %d (indicative: %s) - already exists in database", 
+                        predictedFlight.getInstanceId(), predictedFlight.getIndicative());
+                    skippedDetails.add(skipDetail);
+                    
+                    // Update skip reasons summary
+                    String reason = "Duplicate instanceId";
+                    skipReasons.put(reason, skipReasons.getOrDefault(reason, 0) + 1);
+                    
+                    logger.debug("Skipping existing predicted flight with instanceId: {}", predictedFlight.getInstanceId());
+                    continue;
+                }
+                
+                // Add to batch for saving
+                toSave.add(predictedFlight);
+                
+                // Process batch when it reaches optimal size
+                if (toSave.size() >= OPTIMAL_BATCH_SIZE) {
+                    processed += saveBatch(toSave);
+                    toSave.clear();
+                }
+                
+            } catch (Exception e) {
+                failed++;
+                String error = String.format("Error processing instanceId %d: %s", 
+                    predictedFlight.getInstanceId(), e.getMessage());
+                errors.add(error);
+                logger.error("Error processing predicted flight instanceId: {}", predictedFlight.getInstanceId(), e);
+            }
+        }
+        
+        // Process remaining batch
+        if (!toSave.isEmpty()) {
+            processed += saveBatch(toSave);
+        }
+        
+        String message = String.format(
+            "Batch processing completed: %d received, %d processed, %d skipped, %d failed", 
+            totalReceived, processed, skipped, failed);
+        
+        logger.info(message);
+        
+        return new BatchProcessingResult(totalReceived, processed, skipped, failed, 0L, message, 
+            errors.isEmpty() ? null : errors, 
+            skippedDetails.isEmpty() ? null : skippedDetails,
+            skipReasons.isEmpty() ? null : skipReasons);
+    }
+    
+    /**
+     * Helper method to save a batch of predicted flights efficiently
+     */
+    private int saveBatch(List<PredictedFlightData> batch) {
+        try {
+            List<PredictedFlightData> saved = predictedFlightRepository.saveAll(batch);
+            logger.debug("Successfully saved batch of {} predicted flights", saved.size());
+            return saved.size();
+        } catch (Exception e) {
+            logger.error("Error saving batch of {} predicted flights", batch.size(), e);
+            // Try to save individually to identify problematic records
+            int savedCount = 0;
+            for (PredictedFlightData flight : batch) {
+                try {
+                    predictedFlightRepository.save(flight);
+                    savedCount++;
+                } catch (Exception individualError) {
+                    logger.error("Failed to save individual predicted flight instanceId: {}", 
+                        flight.getInstanceId(), individualError);
+                }
+            }
+            return savedCount;
+        }
     }
     
     /**

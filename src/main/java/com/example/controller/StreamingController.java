@@ -1,13 +1,18 @@
 package com.example.controller;
 
 import com.example.model.ReplayPath;
+import com.example.model.JoinedFlightData;
 import com.example.service.StreamingFlightService;
+import com.example.repository.FlightRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
+import java.util.stream.Collectors;
 
 /**
  * REST controller for streaming flight data processing
@@ -21,6 +26,9 @@ public class StreamingController {
     
     @Autowired
     private StreamingFlightService streamingService;
+    
+    @Autowired
+    private FlightRepository flightRepository;
     
     /**
      * Main endpoint for processing ReplayPath packets
@@ -131,4 +139,41 @@ public class StreamingController {
             return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
         }
     }
+    
+    /**
+     * Get all planIds from flights collection
+     * Returns planIds with metadata for feeding into prediction scripts
+     */
+    @GetMapping("/plan-ids")
+    public ResponseEntity<Map<String, Object>> getAllPlanIds() {
+        try {
+            logger.info("Retrieving all planIds from flights collection...");
+            long startTime = System.currentTimeMillis();
+            
+            // Use projection query to efficiently get only planIds
+            List<JoinedFlightData> projectionResults = flightRepository.findAllPlanIdsProjection();
+            List<Long> planIds = projectionResults.stream()
+                    .map(JoinedFlightData::getPlanId)
+                    .collect(Collectors.toList());
+            
+            long processingTime = System.currentTimeMillis() - startTime;
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("totalCount", planIds.size());
+            response.put("planIds", planIds);
+            response.put("processingTimeMs", processingTime);
+            response.put("message", String.format("Retrieved %d planIds successfully", planIds.size()));
+            
+            logger.info("Retrieved {} planIds in {}ms", planIds.size(), processingTime);
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            logger.error("Error retrieving planIds", e);
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("error", "Failed to retrieve planIds: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(errorResponse);
+        }
+    }
+    
+
 } 

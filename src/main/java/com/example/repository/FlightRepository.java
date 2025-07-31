@@ -2,6 +2,7 @@ package com.example.repository;
 
 import com.example.model.JoinedFlightData;
 import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.mongodb.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -35,4 +36,10 @@ public interface FlightRepository extends MongoRepository<JoinedFlightData, Stri
      * Use this for proper disambiguation when multiple flights have same indicative
      */
     List<JoinedFlightData> findAllByIndicative(String indicative);
+    
+    /**
+     * Get all planIds efficiently - custom query method
+     */
+    @Query(value = "{}", fields = "{ planId: 1, _id: 0 }")
+    List<JoinedFlightData> findAllPlanIdsProjection();
 } 

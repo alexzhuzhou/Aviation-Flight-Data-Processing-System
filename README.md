@@ -116,6 +116,7 @@ mvn exec:java -Dexec.mainClass="com.example.App"
 |--------|----------|-------------|--------------|
 | `POST` | `/api/flights/process-packet` | Process single ReplayPath packet | Single `ReplayPath` object |
 | `POST` | `/api/flights/process-batch` | Process batch ReplayData (legacy, for testing) | Single `ReplayData` object |
+| `GET` | `/api/flights/plan-ids` | **NEW:** Get all planIds for prediction scripts | None |
 | `GET` | `/api/flights/stats` | Get flight statistics | None |
 | `GET` | `/api/flights/health` | Health check | None |
 | `GET` | `/api/flights/analyze-duplicates` | Analyze duplicate indicatives | None |
@@ -126,6 +127,7 @@ mvn exec:java -Dexec.mainClass="com.example.App"
 | Method | Endpoint | Description | Input Format |
 |--------|----------|-------------|--------------|
 | `POST` | `/api/predicted-flights/process` | Process predicted flight data | Predicted flight JSON object |
+| `POST` | `/api/predicted-flights/batch` | **NEW:** Batch process multiple predicted flights | Array of predicted flight objects |
 | `GET` | `/api/predicted-flights/stats` | Get predicted flight statistics | None |
 | `GET` | `/api/predicted-flights/health` | Health check for predicted flights service | None |
 
@@ -160,12 +162,15 @@ curl -X POST http://localhost:8080/api/flights/process-batch \
 
 # Get statistics
 curl http://localhost:8080/api/flights/stats
+
+# NEW: Get all planIds for prediction scripts
+curl http://localhost:8080/api/flights/plan-ids
 ```
 
 #### Predicted Flights API
 
 ```bash
-# Process predicted flight data
+# Process single predicted flight data
 curl -X POST http://localhost:8080/api/predicted-flights/process \
   -H "Content-Type: application/json" \
   -d '{
@@ -178,12 +183,66 @@ curl -X POST http://localhost:8080/api/predicted-flights/process \
     "routeSegments": [...]
   }'
 
+# NEW: Batch process multiple predicted flights (efficient for 1000+ records)
+curl -X POST http://localhost:8080/api/predicted-flights/batch \
+  -H "Content-Type: application/json" \
+  -d @predicted_flights_batch.json
+
 # Get predicted flight statistics
 curl http://localhost:8080/api/predicted-flights/stats
 
 # Health check for predicted flights
 curl http://localhost:8080/api/predicted-flights/health
 ```
+
+## 🚀 **NEW: Batch Processing Workflow**
+
+### **Efficient Prediction Data Processing**
+
+For processing large batches of predicted flight data (1000+ records), use this optimized workflow:
+
+#### **Step 1: Get All PlanIds**
+```bash
+# Get all planIds from actual flight data
+curl http://localhost:8080/api/flights/plan-ids
+# Response: {"totalCount": 1243, "planIds": [17871744, 17873112, ...], "processingTimeMs": 45}
+```
+
+#### **Step 2: Generate Predictions** 
+```python
+# In your prediction script
+import requests
+
+# Get planIds
+response = requests.get("http://localhost:8080/api/flights/plan-ids")
+data = response.json()
+planIds = data["planIds"]  # [17871744, 17873112, ...]
+
+# Generate predictions for all planIds
+predictedFlights = []
+for planId in planIds:
+    predicted = generatePredictedFlight(planId)  # Your prediction logic
+    predictedFlights.append(predicted)
+```
+
+#### **Step 3: Batch Upload** 
+```python
+# Send all predictions in one efficient batch
+result = requests.post(
+    "http://localhost:8080/api/predicted-flights/batch",
+    json=predictedFlights
+)
+
+print(f"Processed: {result.json()}")
+# Response: {"totalReceived": 1243, "totalProcessed": 1200, "totalSkipped": 43, "totalFailed": 0}
+```
+
+### **Batch Processing Features**
+- ✅ **Optimal Performance**: Processes 500 records per database batch
+- ✅ **Skip Duplicates**: Automatically skips existing planIds
+- ✅ **Error Resilience**: Saves what it can, reports failures
+- ✅ **Progress Tracking**: Detailed processing metrics
+- ✅ **Transaction Safety**: Database consistency guaranteed
 
 ##  Configuration
 

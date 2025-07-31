@@ -171,6 +171,32 @@ Cleanup completed: 1250 duplicate tracking points removed
 - `200` - Cleanup completed successfully
 - `500` - Error during cleanup
 
+---
+
+### **7. Get All PlanIds** 🆔 **NEW**
+**GET** `/api/flights/plan-ids`
+
+Retrieves all planIds from the flights collection for feeding into prediction scripts.
+
+#### **Response**
+```json
+{
+  "totalCount": 1243,
+  "planIds": [17871744, 17873112, 17873136, 17873336, 17875545],
+  "processingTimeMs": 45,
+  "message": "Retrieved 1243 planIds successfully"
+}
+```
+
+#### **Status Codes**
+- `200` - PlanIds retrieved successfully
+- `500` - Error retrieving planIds
+
+#### **Use Case**
+This endpoint is designed for external prediction scripts that need all planIds to generate predicted flight data.
+
+---
+
 ## Data Models
 
 ### **ReplayPath**
@@ -406,6 +432,66 @@ Predicted Flight Service is running
 
 #### **Status Codes**
 - `200` - Service is healthy
+
+---
+
+### **4. Batch Process Predicted Flights** 🚀 **NEW**
+**POST** `/api/predicted-flights/batch`
+
+Processes multiple predicted flights efficiently in a single batch operation. Optimized for high-volume processing (1000+ records).
+
+#### **Request Body**
+```json
+[
+  {
+    "instanceId": 17879345,
+    "routeId": 51435982,
+    "distance": null,
+    "routeElements": [...],
+    "id": 51637804,
+    "indicative": "TAM3886",
+    "time": "[Thu Jul 10 22:25:00 UTC 2025,Fri Jul 11 00:00:00 UTC 2025]",
+    "startPointIndicative": "SBGR",
+    "endPointIndicative": "SBCG",
+    "routeSegments": [...]
+  },
+  {
+    "instanceId": 17879346,
+    "routeId": 51435983,
+    "id": 51637805,
+    "indicative": "TAM3887",
+    "routeElements": [...],
+    "routeSegments": [...]
+  }
+]
+```
+
+#### **Response**
+```json
+{
+  "totalReceived": 1243,
+  "totalProcessed": 1200,
+  "totalSkipped": 43,
+  "totalFailed": 0,
+  "processingTimeMs": 2340,
+  "message": "Batch processing completed: 1243 received, 1200 processed, 43 skipped, 0 failed",
+  "errors": null
+}
+```
+
+#### **Status Codes**
+- `200` - Batch processing completed successfully
+- `500` - Error during batch processing
+
+#### **Features**
+- **Optimal Performance**: Processes 500 records per database batch
+- **Skip Duplicates**: Automatically skips existing planIds
+- **Error Resilience**: Saves what it can, reports failures
+- **Progress Tracking**: Detailed processing metrics
+- **Transaction Safety**: Database consistency guaranteed
+
+#### **Use Case**
+Designed for external prediction scripts that need to upload large batches of predicted flight data efficiently.
 
 ---
 

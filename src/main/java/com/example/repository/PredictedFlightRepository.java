@@ -9,20 +9,20 @@ import java.util.Optional;
 
 /**
  * MongoDB repository for predicted flight data operations
- * Uses planId as the primary identifier for matching with actual flights
+ * Uses instanceId as the primary identifier for matching with actual flights (via planId)
  */
 @Repository
 public interface PredictedFlightRepository extends MongoRepository<PredictedFlightData, String> {
     
     /**
-     * Find predicted flight by planId (for matching with actual flight data)
+     * Find predicted flight by instanceId (for matching with actual flight data planId)
      */
-    Optional<PredictedFlightData> findByPlanId(long planId);
+    Optional<PredictedFlightData> findByInstanceId(long instanceId);
     
     /**
-     * Check if predicted flight exists by planId
+     * Check if predicted flight exists by instanceId
      */
-    boolean existsByPlanId(long planId);
+    boolean existsByInstanceId(long instanceId);
     
     /**
      * Find predicted flight by indicative (call sign)

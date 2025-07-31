@@ -1,6 +1,7 @@
 package com.example.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 import org.springframework.data.mongodb.core.index.Indexed;
@@ -27,14 +28,12 @@ public class PredictedFlightData {
     @Id
     private String id; // MongoDB will auto-generate this
     
-    private long instanceId;
+    @Indexed
+    private long instanceId; // Unique identifier for matching with flights.planId
+    
     private long routeId;
     private Double distance; // Can be null
     private List<RouteElement> routeElements;
-    
-    // Note: This 'id' field from JSON will be mapped to planId for matching with actual flights
-    @Indexed
-    private long planId; // This corresponds to the 'id' field in the JSON (e.g., 51637804)
     
     private String indicative;
     private String time;
@@ -47,14 +46,13 @@ public class PredictedFlightData {
     
     // Constructor with main fields
     public PredictedFlightData(long instanceId, long routeId, Double distance, 
-                              List<RouteElement> routeElements, long planId, String indicative, 
+                              List<RouteElement> routeElements, String indicative, 
                               String time, String startPointIndicative, String endPointIndicative, 
                               List<RouteSegment> routeSegments) {
         this.instanceId = instanceId;
         this.routeId = routeId;
         this.distance = distance;
         this.routeElements = routeElements;
-        this.planId = planId;
         this.indicative = indicative;
         this.time = time;
         this.startPointIndicative = startPointIndicative;
@@ -69,6 +67,8 @@ public class PredictedFlightData {
     public long getInstanceId() { return instanceId; }
     public void setInstanceId(long instanceId) { this.instanceId = instanceId; }
     
+
+    
     public long getRouteId() { return routeId; }
     public void setRouteId(long routeId) { this.routeId = routeId; }
     
@@ -78,8 +78,7 @@ public class PredictedFlightData {
     public List<RouteElement> getRouteElements() { return routeElements; }
     public void setRouteElements(List<RouteElement> routeElements) { this.routeElements = routeElements; }
     
-    public long getPlanId() { return planId; }
-    public void setPlanId(long planId) { this.planId = planId; }
+
     
     public String getIndicative() { return indicative; }
     public void setIndicative(String indicative) { this.indicative = indicative; }
@@ -103,7 +102,6 @@ public class PredictedFlightData {
                 ", instanceId=" + instanceId +
                 ", routeId=" + routeId +
                 ", distance=" + distance +
-                ", planId=" + planId +
                 ", indicative='" + indicative + '\'' +
                 ", time='" + time + '\'' +
                 ", startPointIndicative='" + startPointIndicative + '\'' +
