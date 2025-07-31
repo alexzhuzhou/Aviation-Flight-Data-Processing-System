@@ -115,7 +115,7 @@ mvn exec:java -Dexec.mainClass="com.example.App"
 | Method | Endpoint | Description | Input Format |
 |--------|----------|-------------|--------------|
 | `POST` | `/api/flights/process-packet` | Process single ReplayPath packet | Single `ReplayPath` object |
-| `POST` | `/api/flights/process-batch` | Process batch ReplayData (legacy, for testing) | Single `ReplayData` object |
+
 | `GET` | `/api/flights/plan-ids` | **NEW:** Get all planIds for prediction scripts | None |
 | `GET` | `/api/flights/stats` | Get flight statistics | None |
 | `GET` | `/api/flights/health` | Health check | None |
@@ -134,7 +134,7 @@ mvn exec:java -Dexec.mainClass="com.example.App"
 ### Important API Notes
 
 - **Production**: Use `/process-packet` for real-time single packet processing
-- **Testing**: Use `/process-batch` for testing with legacy JSON file format
+
 - **Data Order**: JSON property order doesn't matter - fields are matched by name
 - **Time Format**: The `time` field is stored as a String (can be timestamp or formatted date)
 
@@ -155,10 +155,7 @@ curl -X POST http://localhost:8080/api/flights/process-packet \
     "listFlightIntention": [...]
   }'
 
-# Process legacy batch file (for testing)
-curl -X POST http://localhost:8080/api/flights/process-batch \
-  -H "Content-Type: application/json" \
-  -d @inputData/replay2.json
+
 
 # Get statistics
 curl http://localhost:8080/api/flights/stats
@@ -355,10 +352,7 @@ mvn test -Dtest=StreamingFlightServiceTest
 
 ### Integration Testing
 ```bash
-# Test with existing flight tracking data
-curl -X POST http://localhost:8080/api/flights/process-batch \
-  -H "Content-Type: application/json" \
-  -d @inputData/replay2.json
+
 
 # Check flight tracking results
 curl http://localhost:8080/api/flights/stats
@@ -385,7 +379,8 @@ curl http://localhost:8080/api/predicted-flights/stats
 ### Performance Testing
 ```bash
 # Test batch processing performance
-curl -X POST http://localhost:8080/api/flights/process-batch-packets \
+# Use the predicted flights batch endpoint for performance testing
+curl -X POST http://localhost:8080/api/predicted-flights/batch \
   -H "Content-Type: application/json" \
   -d @your_batch_file.json
 ```

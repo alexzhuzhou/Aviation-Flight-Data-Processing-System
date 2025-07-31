@@ -128,36 +128,11 @@ Streaming Flight Service is running
 
 ---
 
-### **5. Process Batch Data** 📦
-**POST** `/api/flights/process-batch`
 
-Processes a complete ReplayData object (typically from a JSON file).
-
-#### **Request Body**
-```json
-{
-  "time": "1705312200000",
-  "listFlightIntention": [...],
-  "listRealPath": [...]
-}
-```
-
-#### **Response**
-```json
-{
-  "newFlights": 5,
-  "updatedFlights": 3,
-  "message": "Processed 5 new flights, updated 3 flights with tracking data"
-}
-```
-
-#### **Status Codes**
-- `200` - Batch processing completed successfully
-- `500` - Error during batch processing
 
 ---
 
-### **6. Cleanup Duplicates** 🧹
+### **5. Cleanup Duplicates** 🧹
 **POST** `/api/flights/cleanup-duplicates`
 
 Removes duplicate tracking points from all flights in the database.
@@ -173,7 +148,7 @@ Cleanup completed: 1250 duplicate tracking points removed
 
 ---
 
-### **7. Get All PlanIds** 🆔 **NEW**
+### **6. Get All PlanIds** 🆔 **NEW**
 **GET** `/api/flights/plan-ids`
 
 Retrieves all planIds from the flights collection for feeding into prediction scripts.

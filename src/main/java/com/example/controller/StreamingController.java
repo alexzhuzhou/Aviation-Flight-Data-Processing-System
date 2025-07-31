@@ -91,33 +91,7 @@ public class StreamingController {
         return ResponseEntity.ok("Streaming Flight Service is running");
     }
     
-    /**
-     * Batch processing endpoint for testing with existing JSON files
-     */
-    @PostMapping("/process-batch")
-    public ResponseEntity<StreamingFlightService.ProcessingResult> processBatch(
-            @RequestBody com.example.model.ReplayData replayData) {
-        
-        try {
-            logger.info("Received batch ReplayData for processing");
-            
-            // Convert ReplayData to ReplayPath for processing
-            ReplayPath replayPath = new ReplayPath(
-                replayData.getListRealPath(),
-                replayData.getListFlightIntention(), 
-                replayData.getTime()
-            );
-            
-            StreamingFlightService.ProcessingResult result = streamingService.processReplayPath(replayPath);
-            return ResponseEntity.ok(result);
-            
-        } catch (Exception e) {
-            logger.error("Error processing batch data", e);
-            StreamingFlightService.ProcessingResult errorResult = 
-                new StreamingFlightService.ProcessingResult(0, 0, "Error: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(errorResult);
-        }
-    }
+
     
     /**
      * Clean up duplicate tracking points from all flights

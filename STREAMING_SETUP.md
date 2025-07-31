@@ -111,8 +111,6 @@ mvn spring-boot:run
  Streaming Flight Service is running!
  API endpoints:
    POST /api/flights/process-packet - Process single ReplayPath packet
-   POST /api/flights/process-batch-packets - Process multiple ReplayPath packets
-   POST /api/flights/process-batch  - Process batch data (for testing)
    GET  /api/flights/stats         - Get flight statistics
    GET  /api/flights/health        - Health check
 ```
@@ -136,7 +134,7 @@ curl http://localhost:8080/api/flights/stats
 | Method | Endpoint | Description | Input | Use Case |
 |--------|----------|-------------|-------|----------|
 | `POST` | `/api/flights/process-packet` | Process single ReplayPath packet | Single `ReplayPath` object | Real-time streaming |
-| `POST` | `/api/flights/process-batch` | Process ReplayData (legacy) | Single `ReplayData` object | Testing with old JSON files |
+
 | `GET` | `/api/flights/stats` | Get flight statistics | None | Monitoring |
 | `GET` | `/api/flights/health` | Health check | None | Health monitoring |
 | `GET` | `/api/flights/analyze-duplicates` | Analyze duplicate indicatives | None | Data quality monitoring |
@@ -154,7 +152,7 @@ curl http://localhost:8080/api/flights/stats
 
 #### Flight Tracking
 - **Production**: Use `/process-packet` for real-time single packet processing
-- **Testing**: Use `/process-batch` only for legacy JSON file testing
+
 - **JSON Order**: Property order in JSON doesn't matter - fields matched by name
 - **Time Format**: `time` field accepts String format (timestamps, dates, etc.)
 
@@ -249,10 +247,7 @@ curl -X POST http://localhost:8080/api/flights/process-packet \
     ]
   }'
 
-# Test legacy batch processing (for JSON file testing)
-curl -X POST http://localhost:8080/api/flights/process-batch \
-  -H "Content-Type: application/json" \
-  -d @inputData/replay2.json
+
 
 # Test predicted flight processing
 curl -X POST http://localhost:8080/api/predicted-flights/process \
