@@ -22,6 +22,13 @@ This application processes aviation replay data from JSON files and provides rea
 - **Health Monitoring**: Built-in health checks and statistics endpoints
 - **Data Comparison**: Separate storage for predicted vs actual flight data using planId matching
 
+### Punctuality Analysis (ICAO KPI14)
+- **Arrival Punctuality Analysis**: Compare predicted en-route time with executed flight time
+- **KPI Calculation**: Calculate percentage of flights within delay tolerance windows (±3, ±5, ±15 minutes)
+- **Flight Matching**: Match predicted flights with real flights via instanceId/planId
+- **Time Parsing**: Parse complex time formats from predicted flight data
+- **Statistical Reporting**: Generate comprehensive punctuality analysis reports
+
 ### Batch Processing (Development/Testing)
 - **Data Loading**: Parse large JSON replay files efficiently for testing
 - **Statistical Analysis**: Generate summaries and statistics about flight data
@@ -43,7 +50,8 @@ This application processes aviation replay data from JSON files and provides rea
 │   │   │   │   ├── StreamingFlightApplication.java  # Spring Boot main class
 │   │   │   │   ├── controller/
 │   │   │   │   │   ├── StreamingController.java     # REST API endpoints
-│   │   │   │   │   └── PredictedFlightController.java # Predicted flights API
+│   │   │   │   │   ├── PredictedFlightController.java # Predicted flights API
+│   │   │   │   │   └── PunctualityAnalysisController.java # Punctuality analysis API
 │   │   │   │   ├── model/                           # Data models
 │   │   │   │   │   ├── ReplayData.java              # Batch data container
 │   │   │   │   │   ├── ReplayPath.java              # Streaming packet format
@@ -54,13 +62,15 @@ This application processes aviation replay data from JSON files and provides rea
 │   │   │   │   │   ├── TrackingPoint.java           # Individual tracking points
 │   │   │   │   │   ├── PredictedFlightData.java     # Predicted flight data
 │   │   │   │   │   ├── RouteElement.java            # Predicted route elements
-│   │   │   │   │   └── RouteSegment.java            # Predicted route segments
+│   │   │   │   │   ├── RouteSegment.java            # Predicted route segments
+│   │   │   │   │   └── PunctualityAnalysisResult.java # Punctuality analysis results
 │   │   │   │   ├── service/                         # Business logic
 │   │   │   │   │   ├── ReplayDataService.java       # Data analysis service
 │   │   │   │   │   ├── StreamingFlightService.java  # Core streaming logic
 │   │   │   │   │   ├── FlightDataJoinService.java   # Data joining service
 │   │   │   │   │   ├── DataAnalysisService.java     # Statistical analysis
-│   │   │   │   │   └── PredictedFlightService.java  # Predicted flight processing
+│   │   │   │   │   ├── PredictedFlightService.java  # Predicted flight processing
+│   │   │   │   │   └── PunctualityAnalysisService.java # Punctuality analysis service
 │   │   │   │   └── repository/
 │   │   │   │       ├── FlightRepository.java        # MongoDB repository
 │   │   │   │       └── PredictedFlightRepository.java # Predicted flights repository
@@ -322,6 +332,7 @@ The application uses strongly-typed Java models:
 - **PredictedFlightData**: Predicted flight route and timing data for MongoDB storage (predicted_flights collection)
 - **RouteElement**: Individual route elements in predicted flight paths
 - **RouteSegment**: Route segments connecting route elements
+- **PunctualityAnalysisResult**: Results of arrival punctuality analysis with KPI metrics and delay tolerance windows
 
 ### Key Model Changes
 - **Time Field**: Changed from `long` to `String` to handle various timestamp formats
@@ -374,6 +385,65 @@ curl -X POST http://localhost:8080/api/predicted-flights/process \
 
 # Check predicted flights results
 curl http://localhost:8080/api/predicted-flights/stats
+
+### Punctuality Analysis API
+
+#### **Run Punctuality Analysis (ICAO KPI14)**
+```bash
+# Perform arrival punctuality analysis
+curl http://localhost:8080/api/punctuality-analysis/run
+
+# Expected response:
+{
+  "totalMatchedFlights": 150,
+  "totalAnalyzedFlights": 140,
+  "delayToleranceWindows": [
+    {
+      "windowDescription": "± 3 minutes",
+      "toleranceMinutes": 3,
+      "flightsWithinTolerance": 85,
+      "percentageWithinTolerance": 60.7,
+      "kpiOutput": "60.7% of flights where predicted time was within ± 3 minutes of actual time"
+    },
+    {
+      "windowDescription": "± 5 minutes",
+      "toleranceMinutes": 5,
+      "flightsWithinTolerance": 112,
+      "percentageWithinTolerance": 80.0,
+      "kpiOutput": "80.0% of flights where predicted time was within ± 5 minutes of actual time"
+    },
+    {
+      "windowDescription": "± 15 minutes",
+      "toleranceMinutes": 15,
+      "flightsWithinTolerance": 134,
+      "percentageWithinTolerance": 95.7,
+      "kpiOutput": "95.7% of flights where predicted time was within ± 15 minutes of actual time"
+    }
+  ],
+  "analysisTimestamp": "2024-12-19T10:30:45",
+  "message": "Analysis completed: 150 predicted flights, 150 matched with real flights, 140 analyzed successfully"
+}
+```
+
+#### **Get Analysis Statistics**
+```bash
+# Get statistics about available data for analysis
+curl http://localhost:8080/api/punctuality-analysis/stats
+
+# Response:
+{
+  "totalPredictedFlights": 150,
+  "totalRealFlights": 200,
+  "analysisCapability": true
+}
+```
+
+#### **Health Check**
+```bash
+# Check if punctuality analysis service is running
+curl http://localhost:8080/api/punctuality-analysis/health
+
+# Response: "Punctuality Analysis Service is running"
 ```
 
 ### Performance Testing

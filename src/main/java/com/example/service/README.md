@@ -22,6 +22,7 @@ The services are organized by their primary responsibilities:
 | Service | Purpose | Primary Use |
 |---------|---------|-------------|
 | **DataAnalysisService** | Comprehensive data analysis | Data quality and insights |
+| **PunctualityAnalysisService** | Arrival punctuality analysis (ICAO KPI14) | KPI metrics and comparison |
 
 ## Service Responsibilities
 
@@ -60,6 +61,24 @@ The services are organized by their primary responsibilities:
 - `existsByPlanId()` - Check if prediction exists
 
 **Used By**: PredictedFlightController (REST API)
+
+### **PunctualityAnalysisService** ⏰
+**Primary Purpose**: Perform arrival punctuality analysis (ICAO KPI14)
+
+**Key Features**:
+- Compare predicted en-route time with executed flight time
+- Calculate KPI percentages for delay tolerance windows (±3, ±5, ±15 minutes)
+- Match predicted flights with real flights via instanceId/planId
+- Parse complex time formats from predicted flight data
+- Generate comprehensive punctuality analysis reports
+
+**Main Methods**:
+- `performPunctualityAnalysis()` - Main analysis method
+- `getAnalysisStatistics()` - Data availability statistics
+- `parsePredictedEnRouteTime()` - Time format parsing
+- `calculateExecutedFlightTime()` - Real flight time calculation
+
+**Used By**: PunctualityAnalysisController (REST API)
 
 ### **ReplayDataService** 📁
 **Primary Purpose**: Load and access replay data from files

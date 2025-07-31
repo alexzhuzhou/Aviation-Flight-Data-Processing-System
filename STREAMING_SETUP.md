@@ -24,6 +24,15 @@ Your REST API (PredictedFlightController)
 PredictedFlightService
     ↓ stores predictions
 MongoDB Database (predicted_flights collection)
+
+Punctuality Analysis:
+Analysis Request
+    ↓ HTTP GET requests
+Your REST API (PunctualityAnalysisController)
+    ↓ performs analysis
+PunctualityAnalysisService
+    ↓ compares predicted vs actual
+Analysis Results (KPI metrics)
 ```
 
 ### Key Data Structures
@@ -39,6 +48,13 @@ MongoDB Database (predicted_flights collection)
 - **RouteSegment**: Route connections with distance calculations
 - **Storage**: `PredictedFlightData` documents in MongoDB `predicted_flights` collection
 - **Comparison Key**: `planId` used to match predicted flights with actual flight performance
+
+#### Punctuality Analysis
+- **PunctualityAnalysisResult**: Analysis results with KPI metrics and delay tolerance windows
+- **Delay Tolerance Windows**: ±3, ±5, ±15 minute tolerance categories
+- **Time Comparison**: Predicted en-route time vs executed flight time
+- **Flight Matching**: instanceId (predicted) ↔ planId (actual) matching
+- **KPI Calculation**: Percentage of flights within each tolerance window
 
 ##  Prerequisites
 
@@ -113,6 +129,9 @@ mvn spring-boot:run
    POST /api/flights/process-packet - Process single ReplayPath packet
    GET  /api/flights/stats         - Get flight statistics
    GET  /api/flights/health        - Health check
+   POST /api/predicted-flights/process - Process predicted flight data
+   GET  /api/predicted-flights/stats   - Get predicted flight statistics
+   GET  /api/punctuality-analysis/run  - Run punctuality analysis (ICAO KPI14)
 ```
 
 ### 4. Verify Service is Running
@@ -148,6 +167,14 @@ curl http://localhost:8080/api/flights/stats
 | `GET` | `/api/predicted-flights/stats` | Get predicted flight statistics | None | Prediction monitoring |
 | `GET` | `/api/predicted-flights/health` | Health check for predictions | None | Service monitoring |
 
+### Punctuality Analysis Endpoints
+
+| Method | Endpoint | Description | Input | Use Case |
+|--------|----------|-------------|-------|----------|
+| `GET` | `/api/punctuality-analysis/run` | Run arrival punctuality analysis (ICAO KPI14) | None | KPI analysis |
+| `GET` | `/api/punctuality-analysis/stats` | Get analysis statistics | None | Data availability check |
+| `GET` | `/api/punctuality-analysis/health` | Health check for analysis service | None | Service monitoring |
+
 ### Important API Notes
 
 #### Flight Tracking
@@ -161,6 +188,13 @@ curl http://localhost:8080/api/flights/stats
 - **planId Mapping**: JSON `id` field automatically mapped to `planId` for comparison
 - **Comparison Ready**: Data stored for future comparison with actual flight performance
 - **Upsert Behavior**: Updates existing predictions or creates new ones based on planId
+
+#### Punctuality Analysis
+- **Analysis Trigger**: GET request to `/api/punctuality-analysis/run`
+- **Flight Matching**: Uses `instanceId` (predicted) = `planId` (actual) for matching
+- **Time Calculation**: Compares predicted en-route time vs executed flight time
+- **KPI Output**: Returns percentage of flights within ±3, ±5, ±15 minute tolerance windows
+- **Data Requirements**: Requires both predicted and actual flight data in MongoDB
 
 ##  Integration Examples
 
@@ -263,6 +297,15 @@ curl -X POST http://localhost:8080/api/predicted-flights/process \
     "routeElements": [],
     "routeSegments": []
   }'
+
+# Test punctuality analysis (requires both predicted and actual flight data)
+curl http://localhost:8080/api/punctuality-analysis/run
+
+# Get analysis statistics
+curl http://localhost:8080/api/punctuality-analysis/stats
+
+# Health check for analysis service
+curl http://localhost:8080/api/punctuality-analysis/health
 ```
 
 ##  Database Operations

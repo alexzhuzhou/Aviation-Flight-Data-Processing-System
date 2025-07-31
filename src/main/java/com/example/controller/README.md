@@ -4,7 +4,7 @@ This document provides comprehensive information about the Aviation Replay Data 
 
 ## API Overview
 
-The API provides endpoints for real-time processing of aviation flight tracking data and predicted flight data, including packet processing, statistics, data quality monitoring, and prediction comparison capabilities.
+The API provides endpoints for real-time processing of aviation flight tracking data and predicted flight data, including packet processing, statistics, data quality monitoring, prediction comparison capabilities, and punctuality analysis (ICAO KPI14).
 
 ### **Base URL**
 - **Development**: `http://localhost:8080`
@@ -517,6 +517,111 @@ curl -X GET http://localhost:8080/api/predicted-flights/stats
 ```bash
 curl -X GET http://localhost:8080/api/predicted-flights/health
 ```
+
+## Punctuality Analysis Endpoints
+
+These endpoints handle arrival punctuality analysis (ICAO KPI14) by comparing predicted flight times with actual flight times.
+
+### **1. Run Punctuality Analysis** ⏰
+**GET** `/api/punctuality-analysis/run`
+
+Performs arrival punctuality analysis comparing predicted en-route time with executed flight time.
+
+#### **Response**
+```json
+{
+  "totalMatchedFlights": 150,
+  "totalAnalyzedFlights": 140,
+  "delayToleranceWindows": [
+    {
+      "windowDescription": "± 3 minutes",
+      "toleranceMinutes": 3,
+      "flightsWithinTolerance": 85,
+      "percentageWithinTolerance": 60.7,
+      "kpiOutput": "60.7% of flights where predicted time was within ± 3 minutes of actual time"
+    },
+    {
+      "windowDescription": "± 5 minutes",
+      "toleranceMinutes": 5,
+      "flightsWithinTolerance": 112,
+      "percentageWithinTolerance": 80.0,
+      "kpiOutput": "80.0% of flights where predicted time was within ± 5 minutes of actual time"
+    },
+    {
+      "windowDescription": "± 15 minutes",
+      "toleranceMinutes": 15,
+      "flightsWithinTolerance": 134,
+      "percentageWithinTolerance": 95.7,
+      "kpiOutput": "95.7% of flights where predicted time was within ± 15 minutes of actual time"
+    }
+  ],
+  "analysisTimestamp": "2024-12-19T10:30:45",
+  "message": "Analysis completed: 150 predicted flights, 150 matched with real flights, 140 analyzed successfully"
+}
+```
+
+#### **Status Codes**
+- `200` - Analysis completed successfully
+- `500` - Error during analysis
+
+---
+
+### **2. Get Analysis Statistics** 📊
+**GET** `/api/punctuality-analysis/stats`
+
+Retrieves statistics about available data for punctuality analysis.
+
+#### **Response**
+```json
+{
+  "totalPredictedFlights": 150,
+  "totalRealFlights": 200,
+  "analysisCapability": true
+}
+```
+
+#### **Status Codes**
+- `200` - Statistics retrieved successfully
+- `500` - Error retrieving statistics
+
+---
+
+### **3. Health Check** 🏥
+**GET** `/api/punctuality-analysis/health`
+
+Checks if the punctuality analysis service is running.
+
+#### **Response**
+```
+Punctuality Analysis Service is running
+```
+
+#### **Status Codes**
+- `200` - Service is running
+- `500` - Service error
+
+---
+
+## Testing Punctuality Analysis Endpoints
+
+### **Using cURL**
+
+#### **Run Punctuality Analysis**
+```bash
+curl -X GET http://localhost:8080/api/punctuality-analysis/run
+```
+
+#### **Get Analysis Statistics**
+```bash
+curl -X GET http://localhost:8080/api/punctuality-analysis/stats
+```
+
+#### **Health Check**
+```bash
+curl -X GET http://localhost:8080/api/punctuality-analysis/health
+```
+
+---
 
 ## Future Enhancements
 
