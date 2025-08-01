@@ -68,8 +68,6 @@ public class PunctualityAnalysisService {
                 flightsWithinTolerance.put(tolerance, 0);
             }
             
-            List<String> analysisDetails = new ArrayList<>();
-            
             // Analyze each predicted flight
             for (PredictedFlightData predictedFlight : allPredictedFlights) {
                 try {
@@ -127,8 +125,8 @@ public class PunctualityAnalysisService {
                 double percentage = totalAnalyzed > 0 ? (count * 100.0 / totalAnalyzed) : 0.0;
                 
                 String windowDesc = "± " + tolerance + " minutes";
-                String kpiOutput = String.format("%.1f%% of flights where predicted time was within ± %d minutes of actual time", 
-                    percentage, tolerance);
+                String kpiOutput = String.format("%.1f%% (%d/%d flights) where predicted time was within ± %d minutes of actual time", 
+                    percentage, count, totalAnalyzed, tolerance);
                 
                 windows.add(new PunctualityAnalysisResult.DelayToleranceWindow(
                     windowDesc, tolerance, count, percentage, kpiOutput));
@@ -210,21 +208,19 @@ public class PunctualityAnalysisService {
                 return null;
             }
             
-            // Parse timestamps - assuming ISO format or similar
-            // You may need to adjust the date format based on your actual data format
-            SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            
-            // Try different date formats commonly used
+            // Parse timestamps - try different date formats commonly used
             Date planDate = null;
             Date arrivalDate = null;
             
             // Common date formats to try
             String[] dateFormats = {
-                "yyyy-MM-dd HH:mm:ss",
-                "yyyy-MM-dd'T'HH:mm:ss",
-                "yyyy-MM-dd'T'HH:mm:ss'Z'",
-                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
-                "EEE MMM dd HH:mm:ss zzz yyyy"
+                "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",  // 2025-07-11T19:00:00.000+0000
+                "yyyy-MM-dd'T'HH:mm:ssXXX",      // 2025-07-11T19:00:00+0000
+                "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",  // 2025-07-11T19:00:00.000Z
+                "yyyy-MM-dd'T'HH:mm:ss'Z'",      // 2025-07-11T19:00:00Z
+                "yyyy-MM-dd'T'HH:mm:ss",         // 2025-07-11T19:00:00
+                "yyyy-MM-dd HH:mm:ss",           // 2025-07-11 19:00:00
+                "EEE MMM dd HH:mm:ss zzz yyyy"   // Thu Jul 10 22:25:00 UTC 2025
             };
             
             for (String format : dateFormats) {
