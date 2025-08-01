@@ -103,10 +103,18 @@ public class PunctualityAnalysisService {
                     long differenceMinutes = Math.abs(predictedEnRouteMinutes - executedFlightMinutes);
                     
                     // Check which tolerance windows this flight falls within
+                    boolean withinAnyTolerance = false;
                     for (int tolerance : toleranceWindows) {
                         if (differenceMinutes <= tolerance) {
                             flightsWithinTolerance.put(tolerance, flightsWithinTolerance.get(tolerance) + 1);
+                            withinAnyTolerance = true;
                         }
+                    }
+                    
+                    // Log flights that don't fall within any tolerance window
+                    if (!withinAnyTolerance) {
+                        logger.info("Flight OUTSIDE all tolerance windows: {} (planId: {}) - predicted: {}min, executed: {}min, difference: {}min", 
+                            realFlight.getIndicative(), realFlight.getPlanId(), predictedEnRouteMinutes, executedFlightMinutes, differenceMinutes);
                     }
                     
                     logger.debug("Analyzed flight {}: predicted={}min, executed={}min, difference={}min", 
