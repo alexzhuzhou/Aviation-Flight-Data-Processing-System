@@ -23,11 +23,14 @@ This application processes aviation replay data from JSON files and provides rea
 - **Data Comparison**: Separate storage for predicted vs actual flight data using planId matching
 
 ### Punctuality Analysis (ICAO KPI14)
-- **Arrival Punctuality Analysis**: Compare predicted en-route time with executed flight time
-- **KPI Calculation**: Calculate percentage of flights within delay tolerance windows (±3, ±5, ±15 minutes)
+- **Flight Qualification**: Find flights with SBSP ↔ SBRJ routes and AERODROME endpoints
 - **Flight Matching**: Match predicted flights with real flights via instanceId/planId
-- **Time Parsing**: Parse complex time formats from predicted flight data
+- **Geographic Validation**: Filter flights based on 2 NM threshold and flight level ≤ 4
+- **Coordinate Extraction**: Extract airport coordinates from route elements
+- **Time Comparison**: Compare predicted vs actual flight times
+- **KPI Calculation**: Calculate percentage of flights within delay tolerance windows (±3, ±5, ±15 minutes)
 - **Statistical Reporting**: Generate comprehensive punctuality analysis reports
+- **Analysis Pipeline**: Step-by-step validation and analysis workflow
 
 ### Batch Processing (Development/Testing)
 - **Data Loading**: Parse large JSON replay files efficiently for testing

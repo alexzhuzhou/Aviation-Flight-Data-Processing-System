@@ -710,7 +710,7 @@ public class PunctualityAnalysisService {
             return errorResult;
         }
     }
-    
+   
     /**
      * Parse predicted flight duration from time string
      * Format: '[Thu Jul 10 22:25:00 UTC 2025,Fri Jul 11 00:00:00 UTC 2025]'

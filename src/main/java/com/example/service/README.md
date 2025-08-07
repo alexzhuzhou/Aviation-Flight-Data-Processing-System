@@ -63,20 +63,32 @@ The services are organized by their primary responsibilities:
 **Used By**: PredictedFlightController (REST API)
 
 ### **PunctualityAnalysisService** ⏰
-**Primary Purpose**: Perform arrival punctuality analysis (ICAO KPI14)
+**Primary Purpose**: Perform comprehensive arrival punctuality analysis (ICAO KPI14)
 
 **Key Features**:
-- Compare predicted en-route time with executed flight time
-- Calculate KPI percentages for delay tolerance windows (±3, ±5, ±15 minutes)
-- Match predicted flights with real flights via instanceId/planId
-- Parse complex time formats from predicted flight data
-- Generate comprehensive punctuality analysis reports
+- **Flight Qualification**: Find flights with SBSP ↔ SBRJ routes and AERODROME endpoints
+- **Flight Matching**: Match predicted flights with real flights via instanceId/planId
+- **Geographic Validation**: Filter flights based on 2 NM threshold and flight level ≤ 4
+- **Coordinate Extraction**: Extract airport coordinates from route elements
+- **Time Comparison**: Compare predicted vs actual flight times
+- **KPI Calculation**: Calculate percentages within tolerance windows (±3, ±5, ±15 minutes)
+- **Statistical Reporting**: Generate comprehensive analysis reports
 
 **Main Methods**:
-- `performPunctualityAnalysis()` - Main analysis method
-- `getAnalysisStatistics()` - Data availability statistics
-- `parsePredictedEnRouteTime()` - Time format parsing
-- `calculateExecutedFlightTime()` - Real flight time calculation
+- `findQualifyingFlights()` - Find flights meeting route criteria
+- `matchPredictedWithRealFlights()` - Match predicted with real flights
+- `filterFlightsByGeographicValidation()` - Apply geographic validation filters
+- `extractAirportCoordinates()` - Extract airport coordinates
+- `calculatePunctualityKPIs()` - Calculate KPI percentages
+- `getQualifyingFlightsStatistics()` - Statistics about qualifying flights
+- `getFlightMatchingStatistics()` - Statistics about flight matching
+- `getGeographicValidationStatistics()` - Statistics about geographic validation
+
+**Analysis Pipeline**:
+1. **Step 1**: Find qualifying flights (SBSP ↔ SBRJ with AERODROME endpoints)
+2. **Step 2**: Match predicted flights with real flights (instanceId ↔ planId)
+3. **Step 3**: Apply geographic validation (2 NM threshold + flight level ≤ 4)
+4. **Step 4**: Calculate punctuality KPIs (time comparison with tolerance windows)
 
 **Used By**: PunctualityAnalysisController (REST API)
 

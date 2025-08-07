@@ -602,6 +602,195 @@ Punctuality Analysis Service is running
 
 ---
 
+### **4. Find Qualifying Flights** 🔍
+**GET** `/api/punctuality-analysis/qualifying-flights`
+
+Finds predicted flights that meet the specific route conditions for punctuality analysis (SBSP ↔ SBRJ with AERODROME endpoints).
+
+#### **Response**
+```json
+{
+  "totalQualifyingFlights": 45,
+  "sbspToSbrj": 23,
+  "sbrjToSbsp": 22,
+  "analysisCapability": true,
+  "qualifyingFlights": [
+    {
+      "instanceId": 17879345,
+      "indicative": "TAM3886",
+      "startPointIndicative": "SBSP",
+      "endPointIndicative": "SBRJ",
+      "routeElements": [...]
+    }
+  ]
+}
+```
+
+#### **Status Codes**
+- `200` - Qualifying flights found successfully
+- `500` - Error finding qualifying flights
+
+---
+
+### **5. Extract Airport Coordinates** 📍
+**GET** `/api/punctuality-analysis/airport-coordinates`
+
+Extracts airport coordinates from qualifying flights for analysis.
+
+#### **Response**
+```json
+{
+  "totalQualifyingFlights": 45,
+  "sbspToSbrj": 23,
+  "sbrjToSbsp": 22,
+  "analysisCapability": true,
+  "flightsWithCoordinates": [
+    {
+      "planId": 17879345,
+      "indicative": "TAM3886",
+      "startPointIndicative": "SBSP",
+      "endPointIndicative": "SBRJ",
+      "departureAirport": {
+        "indicative": "SBSP",
+        "latitude": -23.43555556,
+        "longitude": -46.47305556,
+        "elementType": "AERODROME",
+        "coordinateText": "2326S04628W"
+      },
+      "arrivalAirport": {
+        "indicative": "SBRJ",
+        "latitude": -22.91083333,
+        "longitude": -43.16305556,
+        "elementType": "AERODROME",
+        "coordinateText": "2254S04306W"
+      },
+      "distanceKm": 358.45
+    }
+  ]
+}
+```
+
+#### **Status Codes**
+- `200` - Coordinates extracted successfully
+- `500` - Error extracting coordinates
+
+---
+
+### **6. Match Predicted with Real Flights** 🔗
+**GET** `/api/punctuality-analysis/match-flights`
+
+Matches qualifying predicted flights with their corresponding real flights using instanceId/planId matching.
+
+#### **Response**
+```json
+{
+  "totalQualifyingFlights": 45,
+  "matchedFlights": 38,
+  "unmatchedFlights": 7,
+  "matchRate": 84.4,
+  "analysisCapability": true,
+  "matchedFlights": [
+    {
+      "instanceId": 17879345,
+      "predictedIndicative": "TAM3886",
+      "planId": 17879345,
+      "realIndicative": "TAM3886",
+      "hasRealFlight": true,
+      "trackingPointsCount": 156,
+      "predictedFlight": {...},
+      "realFlight": {...}
+    }
+  ]
+}
+```
+
+#### **Status Codes**
+- `200` - Flight matching completed successfully
+- `500` - Error during flight matching
+
+---
+
+### **7. Apply Geographic Validation** 🌍
+**GET** `/api/punctuality-analysis/geographic-validation`
+
+Applies geographic validation filters to matched flights (2 NM threshold + flight level ≤ 4).
+
+#### **Response**
+```json
+{
+  "totalMatchedFlights": 38,
+  "totalValidatedFlights": 32,
+  "totalRejectedFlights": 6,
+  "validationRate": "84.2%",
+  "sampleValidatedFlights": [
+    {
+      "instanceId": 17879345,
+      "predictedIndicative": "TAM3886",
+      "planId": 17879345,
+      "realIndicative": "TAM3886",
+      "hasRealFlight": true,
+      "trackingPointsCount": 156,
+      "departureDistanceNM": 1.2,
+      "arrivalDistanceNM": 0.8,
+      "departureDistanceKm": 2.22,
+      "arrivalDistanceKm": 1.48,
+      "departureFlightLevel": 3,
+      "arrivalFlightLevel": 2,
+      "departureFlightLevelFeet": 300,
+      "arrivalFlightLevelFeet": 200,
+      "predictedFlight": {...},
+      "realFlight": {...}
+    }
+  ]
+}
+```
+
+#### **Status Codes**
+- `200` - Geographic validation completed successfully
+- `500` - Error during geographic validation
+
+---
+
+### **8. Calculate Punctuality KPIs** 📊
+**GET** `/api/punctuality-analysis/punctuality-kpis`
+
+Calculates punctuality KPIs by comparing predicted vs actual flight times within tolerance windows.
+
+#### **Response**
+```json
+{
+  "totalAnalyzed": 32,
+  "totalErrors": 0,
+  "within3MinCount": 19,
+  "within3MinPercentage": "59.4%",
+  "within5MinCount": 26,
+  "within5MinPercentage": "81.3%",
+  "within15MinCount": 31,
+  "within15MinPercentage": "96.9%",
+  "sampleDetailedResults": [
+    {
+      "flightIndicative": "TAM3886",
+      "actualDurationMs": 5400000,
+      "predictedDurationMs": 5520000,
+      "timeDifferenceMs": 120000,
+      "timeDifferenceMinutes": 2.0,
+      "within3Min": true,
+      "within5Min": true,
+      "within15Min": true,
+      "actualDepartureTime": 1705312200000,
+      "actualArrivalTime": 1705317600000,
+      "predictedTimeString": "[Thu Jul 10 22:25:00 UTC 2025,Fri Jul 11 00:00:00 UTC 2025]"
+    }
+  ]
+}
+```
+
+#### **Status Codes**
+- `200` - KPIs calculated successfully
+- `500` - Error calculating KPIs
+
+---
+
 ## Testing Punctuality Analysis Endpoints
 
 ### **Using cURL**
@@ -614,6 +803,31 @@ curl -X GET http://localhost:8080/api/punctuality-analysis/run
 #### **Get Analysis Statistics**
 ```bash
 curl -X GET http://localhost:8080/api/punctuality-analysis/stats
+```
+
+#### **Find Qualifying Flights**
+```bash
+curl -X GET http://localhost:8080/api/punctuality-analysis/qualifying-flights
+```
+
+#### **Extract Airport Coordinates**
+```bash
+curl -X GET http://localhost:8080/api/punctuality-analysis/airport-coordinates
+```
+
+#### **Match Predicted with Real Flights**
+```bash
+curl -X GET http://localhost:8080/api/punctuality-analysis/match-flights
+```
+
+#### **Apply Geographic Validation**
+```bash
+curl -X GET http://localhost:8080/api/punctuality-analysis/geographic-validation
+```
+
+#### **Calculate Punctuality KPIs**
+```bash
+curl -X GET http://localhost:8080/api/punctuality-analysis/punctuality-kpis
 ```
 
 #### **Health Check**

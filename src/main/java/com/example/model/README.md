@@ -34,6 +34,14 @@ These models handle predicted flight information for comparison analysis.
 | **RouteElement** | Route point data | Embedded in PredictedFlightData |
 | **RouteSegment** | Route connection data | Embedded in PredictedFlightData |
 
+### **4. Analysis Models** (Analysis Results)
+These models represent analysis results and KPI outputs.
+
+| Model | Purpose | Usage |
+|-------|---------|-------|
+| **PunctualityAnalysisResult** | Punctuality analysis results | ICAO KPI14 analysis output |
+| **BatchProcessingResult** | Batch processing results | Processing statistics and results |
+
 ## Data Flow
 
 ```
@@ -47,6 +55,11 @@ Prediction System → Your System → MongoDB
      ↓                ↓           ↓
 Predicted Flight → Processing → PredictedFlightData (predicted_flights collection)
 JSON Data       → Service    → RouteElement, RouteSegment
+
+Analysis Service → Your System → API Response
+     ↓                ↓           ↓
+Flight Data     → Analysis   → PunctualityAnalysisResult (KPI output)
+Predicted Data  → Service    → BatchProcessingResult (processing stats)
 ```
 
 ## Model Relationships
@@ -91,7 +104,16 @@ PredictedFlightData (MongoDB Document - predicted_flights collection)
 └── routeSegments: List<RouteSegment>
     ├── elementAId, elementBId
     └── distance
-```
+
+PunctualityAnalysisResult (Analysis Output)
+├── totalMatchedFlights, totalAnalyzedFlights
+├── delayToleranceWindows: List<DelayToleranceWindow>
+│   ├── windowDescription (e.g., "± 3 minutes")
+│   ├── toleranceMinutes, flightsWithinTolerance
+│   ├── percentageWithinTolerance
+│   └── kpiOutput (formatted KPI text)
+├── analysisTimestamp
+└── message (analysis status/notes)
 
 ## Key Differences
 
