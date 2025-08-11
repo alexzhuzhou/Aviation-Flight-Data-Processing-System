@@ -70,3 +70,4 @@ mongodb_backup/
 docker-compose.yml
 mongo-init.js
 src/main/java/com/example/config/
+src/test/java/com/example/OracleConnectionTest.java
