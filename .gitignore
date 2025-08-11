@@ -66,3 +66,7 @@ scripts/
 
 src/main/resources/application.yml
 mongodb_backup/
+
+docker-compose.yml
+mongo-init.js
+src/main/java/com/example/config/

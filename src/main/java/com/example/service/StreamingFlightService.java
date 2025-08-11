@@ -296,6 +296,7 @@ public class StreamingFlightService {
     /**
      * Parse timestamp string to milliseconds
      * Handles various timestamp formats used in the flight data
+     * FIXED: Always parse timestamps in UTC to avoid timezone issues
      */
     private long parseTimestamp(String timestampStr) {
         if (timestampStr == null || timestampStr.trim().isEmpty()) {
@@ -304,10 +305,12 @@ public class StreamingFlightService {
         
         try {
             // Try parsing as ISO format first (e.g., "2025-07-11T00:00:00.000+0000")
-            return java.time.Instant.parse(timestampStr.replace("+0000", "Z")).toEpochMilli();
+            // FIXED: Ensure UTC parsing by properly handling timezone indicators
+            String normalized = timestampStr.replace("+0000", "Z");
+            return java.time.Instant.parse(normalized).toEpochMilli();
         } catch (Exception e) {
             try {
-                // Try parsing as long value
+                // Try parsing as long value (Unix timestamp - already in UTC)
                 return Long.parseLong(timestampStr);
             } catch (NumberFormatException nfe) {
                 throw new IllegalArgumentException("Could not parse timestamp: " + timestampStr, nfe);

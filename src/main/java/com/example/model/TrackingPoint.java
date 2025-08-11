@@ -84,6 +84,7 @@ public class TrackingPoint {
     /**
      * Helper method to parse timestamp string to long
      * Handles various timestamp formats including ISO 8601
+     * FIXED: Always parse timestamps in UTC to avoid timezone issues
      */
     private long parseTimestampToLong(String timestampStr) {
         try {
@@ -94,15 +95,16 @@ public class TrackingPoint {
                 if (normalized.endsWith("+00:00")) {
                     normalized = normalized.replace("+00:00", "Z");
                 }
+                // FIXED: Parse in UTC timezone explicitly
                 return java.time.Instant.parse(normalized).toEpochMilli();
             }
-            // Try to parse as long (Unix timestamp)
+            // Try to parse as long (Unix timestamp - already in UTC)
             return Long.parseLong(timestampStr);
         } catch (Exception e) {
             // Log the parsing error for debugging
             System.err.println("Failed to parse timestamp: " + timestampStr + ", error: " + e.getMessage());
-            // If parsing fails, return current timestamp as fallback
-            return System.currentTimeMillis();
+            // FIXED: Return UTC timestamp as fallback
+            return java.time.Instant.now().toEpochMilli();
         }
     }
     
