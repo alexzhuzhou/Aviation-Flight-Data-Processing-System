@@ -1,10 +1,10 @@
 # API Documentation
 
-This document provides comprehensive information about the Aviation Replay Data Processor REST API, including both flight tracking and predicted flight endpoints.
+This document provides comprehensive information about the Aviation Replay Data Processor REST API, including Oracle database integration, flight tracking, predicted flight endpoints, and punctuality analysis.
 
 ## API Overview
 
-The API provides endpoints for real-time processing of aviation flight tracking data and predicted flight data, including packet processing, statistics, data quality monitoring, prediction comparison capabilities, and punctuality analysis (ICAO KPI14).
+The API provides endpoints for real-time processing of aviation flight tracking data with direct Oracle database integration, predicted flight data processing, packet processing, statistics, data quality monitoring, prediction comparison capabilities, and punctuality analysis (ICAO KPI14).
 
 ### **Base URL**
 - **Development**: `http://localhost:8080`
@@ -16,12 +16,102 @@ The API provides endpoints for real-time processing of aviation flight tracking 
 
 ## Flight Tracking Endpoints
 
-These endpoints handle actual flight tracking data and real-time packet processing.
+These endpoints handle actual flight tracking data with Oracle database integration and real-time packet processing.
 
-### **1. Process Streaming Packet** 🚀
+### **1. Process Flight Data from Oracle** 🚀 **NEW**
 **POST** `/api/flights/process-packet`
 
-Processes a single ReplayPath packet containing flight intentions and tracking points.
+Processes flight data directly from the Sigma Oracle database for the hardcoded date (2025-07-11). This is the main production endpoint that replaces JSON-based input with direct database access.
+
+#### **Request Body**
+None required - triggers automatic processing from Oracle database.
+
+#### **Response**
+```json
+{
+  "newFlights": 150,
+  "updatedFlights": 200,
+  "totalPacketsProcessed": 25,
+  "packetsWithErrors": 0,
+  "processingTimeMs": 15420,
+  "dataSource": "Oracle Database - Sigma Production",
+  "extractionDate": "2025-07-11",
+  "message": "Successfully processed 25 packets from Oracle database",
+  "databaseConnectionTime": 1200,
+  "dataExtractionTime": 8500,
+  "dataProcessingTime": 5720
+}
+```
+
+#### **Status Codes**
+- `200` - Data processed successfully from Oracle
+- `500` - Database connection or processing error
+
+---
+
+### **2. Test Oracle Connection** 🔗 **NEW**
+**GET** `/api/flights/test-oracle-connection`
+
+Tests the connection to the Sigma Oracle database and returns connection status.
+
+#### **Response**
+```json
+{
+  "connectionStatus": "SUCCESS",
+  "connectionTimeMs": 850,
+  "databaseVersion": "Oracle Database 19c",
+  "message": "Successfully connected to Sigma Oracle database"
+}
+```
+
+#### **Status Codes**
+- `200` - Connection test successful
+- `500` - Connection failed
+
+---
+
+### **3. Integration Summary** 📊 **NEW**
+**GET** `/api/flights/integration-summary`
+
+Provides comprehensive summary of the Oracle integration status, database statistics, and processing capabilities.
+
+#### **Response**
+```json
+{
+  "oracleIntegration": {
+    "status": "ACTIVE",
+    "lastConnectionTest": "2024-12-19T10:30:00",
+    "connectionTimeMs": 850
+  },
+  "mongodbIntegration": {
+    "status": "ACTIVE",
+    "totalFlights": 1250,
+    "totalTrackingPoints": 45678
+  },
+  "processingCapabilities": {
+    "oracleDataExtraction": true,
+    "realtimeProcessing": true,
+    "predictedFlightAnalysis": true,
+    "punctualityAnalysis": true
+  },
+  "lastProcessingRun": {
+    "timestamp": "2024-12-19T09:45:00",
+    "packetsProcessed": 25,
+    "processingTimeMs": 15420
+  }
+}
+```
+
+#### **Status Codes**
+- `200` - Summary retrieved successfully
+- `500` - Error retrieving integration status
+
+---
+
+### **4. Process Legacy Packet** 📦
+**POST** `/api/flights/process-packet-legacy`
+
+Processes a single ReplayPath packet containing flight intentions and tracking points (legacy JSON input method).
 
 #### **Request Body**
 ```json
@@ -68,7 +158,27 @@ Processes a single ReplayPath packet containing flight intentions and tracking p
 
 ---
 
-### **2. Get Statistics** 📊
+### **5. Get Plan IDs** 🆔
+**GET** `/api/flights/plan-ids`
+
+Retrieves all planIds from processed flight data for use in prediction scripts.
+
+#### **Response**
+```json
+{
+  "totalCount": 1243,
+  "planIds": [17871744, 17873112, 17879345, ...],
+  "processingTimeMs": 45
+}
+```
+
+#### **Status Codes**
+- `200` - Plan IDs retrieved successfully
+- `500` - Error retrieving plan IDs
+
+---
+
+### **6. Get Statistics** 📊
 **GET** `/api/flights/stats`
 
 Retrieves current statistics about processed flight data.
@@ -88,7 +198,7 @@ Retrieves current statistics about processed flight data.
 
 ---
 
-### **3. Analyze Duplicates** 🔍
+### **7. Analyze Duplicates** 🔍
 **GET** `/api/flights/analyze-duplicates`
 
 Analyzes the database for flights with duplicate call signs (indicatives).

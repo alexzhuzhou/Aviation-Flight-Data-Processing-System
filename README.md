@@ -1,19 +1,29 @@
 # Aviation Flight Data Processing System
 
-A comprehensive Java Spring Boot application for processing and analyzing aviation tracking data, featuring both batch processing and real-time streaming capabilities, with support for predicted flight data comparison.
+A comprehensive Java Spring Boot application for processing and analyzing aviation tracking data, featuring Oracle database integration, real-time streaming capabilities, and advanced punctuality analysis, with support for predicted flight data comparison.
 
 ## Overview
 
-This application processes aviation replay data from JSON files and provides real-time streaming capabilities, designed to work with data containing:
+This application processes aviation flight data from multiple sources and provides comprehensive analysis capabilities, designed to work with:
+- **Oracle Database Integration** - Direct extraction from Sigma production database
 - **Real Path Points** (`listRealPath`) - Real-time aircraft tracking data
 - **Flight Intentions** (`listFlightIntention`) - Planned flight schedules and information
 - **Predicted Flight Data** - Predicted flight routes and timing for comparison with actual data
+- **Punctuality Analysis** - ICAO KPI14 compliance analysis with multiple tolerance windows
 - **Timestamp** - Global reference time for the dataset (stored as String)
 
 ## Features
 
+### Oracle Database Integration (Production)
+- **Direct Database Access**: Extract flight data directly from Sigma Oracle production database
+- **Automated Processing**: Process hardcoded date (2025-07-11) flight data automatically
+- **Performance Metrics**: Detailed timing metrics for database operations
+- **Connection Management**: Robust Oracle database connection handling
+- **Error Resilience**: Comprehensive error handling and reporting
+
 ### Real-Time Streaming (Production)
 - **Live Data Processing**: Process `ReplayPath` packets in real-time via REST API
+- **Oracle Data Processing**: Direct processing from Oracle database via REST endpoints
 - **Predicted Flight Processing**: Process predicted flight data for comparison analysis
 - **Batch Processing**: Efficient batch processing of multiple packets
 - **MongoDB Integration**: Store flight data and tracking points in MongoDB with separate collections
@@ -32,16 +42,32 @@ This application processes aviation replay data from JSON files and provides rea
 - **Statistical Reporting**: Generate comprehensive punctuality analysis reports
 - **Analysis Pipeline**: Step-by-step validation and analysis workflow
 
-### Batch Processing (Development/Testing)
-- **Data Loading**: Parse large JSON replay files efficiently for testing
-- **Statistical Analysis**: Generate summaries and statistics about flight data
+
 
 ## Prerequisites
 
-- Java 17 or higher
-- Maven 3.6 or higher
+- Java 15 or higher
+- Maven 3.8+ (tested with 3.8.3)
 - MongoDB (for streaming features) - can be run via Docker
+- Oracle Database access (for production Sigma integration)
 - Data files in the `inputData/` folder (for testing only)
+
+## 🚀 Quick Setup
+
+**For detailed setup instructions, see [SETUP.md](SETUP.md)**
+
+### Essential Steps:
+1. **Clone and build**: `mvn clean compile`
+2. **Setup MongoDB**: `docker run -d --name aviation_mongodb -p 27017:27017 mongo:latest`
+3. **Create config files**:
+   ```bash
+   cp src/main/java/com/example/config/OracleConfig.java.template src/main/java/com/example/config/OracleConfig.java
+   cp src/main/resources/application.yml.example src/main/resources/application.yml
+   ```
+4. **Set credentials**: Update `application.yml` and set environment variables
+5. **Run**: `mvn spring-boot:run`
+
+⚠️ **Security Note**: Configuration files with actual credentials are automatically excluded from git commits.
 
 ##  Project Structure
 
@@ -52,7 +78,7 @@ This application processes aviation replay data from JSON files and provides rea
 │   │   │   ├── com/example/
 │   │   │   │   ├── StreamingFlightApplication.java  # Spring Boot main class
 │   │   │   │   ├── controller/
-│   │   │   │   │   ├── StreamingController.java     # REST API endpoints
+│   │   │   │   │   ├── StreamingController.java     # REST API endpoints with Oracle integration
 │   │   │   │   │   ├── PredictedFlightController.java # Predicted flights API
 │   │   │   │   │   └── PunctualityAnalysisController.java # Punctuality analysis API
 │   │   │   │   ├── model/                           # Data models
@@ -66,14 +92,17 @@ This application processes aviation replay data from JSON files and provides rea
 │   │   │   │   │   ├── PredictedFlightData.java     # Predicted flight data
 │   │   │   │   │   ├── RouteElement.java            # Predicted route elements
 │   │   │   │   │   ├── RouteSegment.java            # Predicted route segments
-│   │   │   │   │   └── PunctualityAnalysisResult.java # Punctuality analysis results
+│   │   │   │   │   ├── PunctualityAnalysisResult.java # Punctuality analysis results
+│   │   │   │   │   ├── OracleProcessingResult.java  # NEW: Oracle processing results
+│   │   │   │   │   └── BatchProcessingResult.java   # NEW: Batch processing results
 │   │   │   │   ├── service/                         # Business logic
 │   │   │   │   │   ├── ReplayDataService.java       # Data analysis service
 │   │   │   │   │   ├── StreamingFlightService.java  # Core streaming logic
 │   │   │   │   │   ├── FlightDataJoinService.java   # Data joining service
 │   │   │   │   │   ├── DataAnalysisService.java     # Statistical analysis
 │   │   │   │   │   ├── PredictedFlightService.java  # Predicted flight processing
-│   │   │   │   │   └── PunctualityAnalysisService.java # Punctuality analysis service
+│   │   │   │   │   ├── PunctualityAnalysisService.java # Punctuality analysis service
+│   │   │   │   │   └── OracleDataExtractionService.java # NEW: Oracle database integration
 │   │   │   │   └── repository/
 │   │   │   │       ├── FlightRepository.java        # MongoDB repository
 │   │   │   │       └── PredictedFlightRepository.java # Predicted flights repository
@@ -127,9 +156,11 @@ mvn exec:java -Dexec.mainClass="com.example.App"
 
 | Method | Endpoint | Description | Input Format |
 |--------|----------|-------------|--------------|
-| `POST` | `/api/flights/process-packet` | Process single ReplayPath packet | Single `ReplayPath` object |
-
-| `GET` | `/api/flights/plan-ids` | **NEW:** Get all planIds for prediction scripts | None |
+| `POST` | `/api/flights/process-packet` | **NEW:** Process flight data directly from Oracle database | None (uses hardcoded date 2025-07-11) |
+| `POST` | `/api/flights/process-packet-legacy` | Process single ReplayPath packet (legacy JSON input) | Single `ReplayPath` object |
+| `GET` | `/api/flights/test-oracle-connection` | **NEW:** Test Oracle database connection | None |
+| `GET` | `/api/flights/integration-summary` | **NEW:** Get comprehensive integration summary | None |
+| `GET` | `/api/flights/plan-ids` | Get all planIds for prediction scripts | None |
 | `GET` | `/api/flights/stats` | Get flight statistics | None |
 | `GET` | `/api/flights/health` | Health check | None |
 | `GET` | `/api/flights/analyze-duplicates` | Analyze duplicate indicatives | None |
@@ -146,8 +177,9 @@ mvn exec:java -Dexec.mainClass="com.example.App"
 
 ### Important API Notes
 
-- **Production**: Use `/process-packet` for real-time single packet processing
-
+- **Production**: Use `/process-packet` for Oracle database integration (no JSON input required)
+- **Legacy**: Use `/process-packet-legacy` for JSON-based packet processing
+- **Oracle Integration**: Direct database access eliminates need for external data files
 - **Data Order**: JSON property order doesn't matter - fields are matched by name
 - **Time Format**: The `time` field is stored as a String (can be timestamp or formatted date)
 
@@ -159,8 +191,17 @@ mvn exec:java -Dexec.mainClass="com.example.App"
 # Health check
 curl http://localhost:8080/api/flights/health
 
-# Process a single packet
-curl -X POST http://localhost:8080/api/flights/process-packet \
+# NEW: Process flight data directly from Oracle database (production)
+curl -X POST http://localhost:8080/api/flights/process-packet
+
+# NEW: Test Oracle database connection
+curl http://localhost:8080/api/flights/test-oracle-connection
+
+# NEW: Get comprehensive integration summary
+curl http://localhost:8080/api/flights/integration-summary
+
+# Process a single packet (legacy JSON input)
+curl -X POST http://localhost:8080/api/flights/process-packet-legacy \
   -H "Content-Type: application/json" \
   -d '{
     "time": "1626789600000",
@@ -168,12 +209,10 @@ curl -X POST http://localhost:8080/api/flights/process-packet \
     "listFlightIntention": [...]
   }'
 
-
-
 # Get statistics
 curl http://localhost:8080/api/flights/stats
 
-# NEW: Get all planIds for prediction scripts
+# Get all planIds for prediction scripts
 curl http://localhost:8080/api/flights/plan-ids
 ```
 
@@ -276,6 +315,24 @@ logging:
     org.springframework.data.mongodb: WARN
 ```
 
+### Oracle Database Setup (Production)
+
+For Oracle integration, ensure your `application.yml` includes Oracle database configuration:
+```yaml
+# Oracle database configuration for Sigma integration
+spring:
+  datasource:
+    sigma:
+      url: jdbc:oracle:thin:@//your-oracle-host:1521/your-service-name
+      username: ${ORACLE_USERNAME}
+      password: ${ORACLE_PASSWORD}
+      driver-class-name: oracle.jdbc.OracleDriver
+```
+
+**Environment Variables:**
+- `ORACLE_USERNAME`: Oracle database username
+- `ORACLE_PASSWORD`: Oracle database password
+
 ### Running MongoDB
 
 ```bash
@@ -336,11 +393,14 @@ The application uses strongly-typed Java models:
 - **RouteElement**: Individual route elements in predicted flight paths
 - **RouteSegment**: Route segments connecting route elements
 - **PunctualityAnalysisResult**: Results of arrival punctuality analysis with KPI metrics and delay tolerance windows
+- **OracleProcessingResult**: **NEW** - Results from Oracle database processing with performance metrics
+- **BatchProcessingResult**: **NEW** - Results from batch processing operations
 
 ### Key Model Changes
 - **Time Field**: Changed from `long` to `String` to handle various timestamp formats
 - **Flexible JSON**: Property order in JSON doesn't matter - matched by field name
 - **MongoDB Ready**: Optimized for efficient storage and querying
+- **Oracle Integration**: New models support direct database extraction and processing metrics
 
 ## Dependencies
 
