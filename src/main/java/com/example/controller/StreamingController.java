@@ -158,22 +158,22 @@ public class StreamingController {
         try {
             oracleExtractionService.testDatabaseConnection();
             oracleConnected = true;
-            oracleStatus = "✅ Successfully connected to Sigma Oracle database (10.103.3.8:1521/SIGMA_PLT3_DEV1_APP)";
+            oracleStatus = " Successfully connected to Sigma Oracle database (10.103.3.8:1521/SIGMA_PLT3_DEV1_APP)";
         } catch (Exception e) {
-            oracleStatus = "❌ Oracle connection failed: " + e.getMessage();
+            oracleStatus = " Oracle connection failed: " + e.getMessage();
         }
         
         summary.put("integrationStatus", "SUCCESS");
         summary.put("achievements", Arrays.asList(
-            "✅ Spring Boot 3.1.2 + Sigma Legacy System Integration",
-            "✅ Oracle Database Connectivity (Sigma Production DB)",
-            "✅ Resolved Complex Spring Dependency Conflicts (OAuth2, LDAP, Quartz, Spring Integration)",
-            "✅ Java 17 Module System Compatibility (ASM, Unsafe, Internal APIs)",
-            "✅ Genesis Serialization System Initialization",
-            "✅ Sigma Parent POM Structure Integration",
-            "✅ Custom Security and Database Configuration",
-            "✅ REST API for Flight Data Processing",
-            "✅ Comprehensive Error Handling and Logging"
+            " Spring Boot 3.1.2 + Sigma Legacy System Integration",
+            " Oracle Database Connectivity (Sigma Production DB)",
+            " Resolved Complex Spring Dependency Conflicts (OAuth2, LDAP, Quartz, Spring Integration)",
+            " Java 17 Module System Compatibility (ASM, Unsafe, Internal APIs)",
+            " Genesis Serialization System Initialization",
+            " Sigma Parent POM Structure Integration",
+            " Custom Security and Database Configuration",
+            " REST API for Flight Data Processing",
+            " Comprehensive Error Handling and Logging"
         ));
         
         summary.put("oracleConnection", Map.of(
@@ -203,7 +203,7 @@ public class StreamingController {
             "integrationSummary", "GET /api/flights/integration-summary"
         ));
         
-        summary.put("message", "🎉 INTEGRATION SUCCESS! Successfully bridged Spring Boot 3.1.2 with Sigma legacy ecosystem. " +
+        summary.put("message", " INTEGRATION SUCCESS! Successfully bridged Spring Boot 3.1.2 with Sigma legacy ecosystem. " +
                               "Oracle connectivity working perfectly. Only remaining issue is Genesis serialization compatibility with Java 17.");
         
         return ResponseEntity.ok(summary);

@@ -12,6 +12,7 @@ The services are organized by their primary responsibilities:
 | **StreamingFlightService** | Real-time data processing | Production streaming API |
 | **PredictedFlightService** | Predicted flight processing | Prediction data storage and analysis |
 | **FlightDataJoinService** | Data joining and export | Batch processing and export |
+| **OracleDataExtractionService** | **NEW** - Oracle database integration | Direct data extraction from Sigma production database |
 
 ### **2. Data Access Services**
 | Service | Purpose | Primary Use |
@@ -62,7 +63,34 @@ The services are organized by their primary responsibilities:
 
 **Used By**: PredictedFlightController (REST API)
 
-### **PunctualityAnalysisService** ⏰
+### **OracleDataExtractionService** 🏛️ **NEW**
+**Primary Purpose**: Extract flight data directly from Sigma Oracle production database
+
+**Key Features**:
+- **Direct Database Access**: Connect to Sigma Oracle database and extract ReplayPath packets
+- **Hardcoded Date Processing**: Process flight data for specific date (2025-07-11) as configured
+- **Performance Monitoring**: Track database connection, extraction, and processing times
+- **Error Handling**: Comprehensive error handling for database operations
+- **Integration with Streaming**: Seamlessly integrates with existing StreamingFlightService
+- **Production Ready**: Replaces file-based input with direct database access
+
+**Main Methods**:
+- `processFlightDataFromOracle()` - Main entry point for Oracle data extraction and processing
+- `testOracleConnection()` - Test database connectivity
+- `getIntegrationSummary()` - Get comprehensive integration status and metrics
+
+**Technical Details**:
+- Uses Spring JDBC Template for Oracle database operations
+- Integrates with existing `IMergeSupport` and `ReplaySerializer` from Sigma codebase
+- Processes data through existing `StreamingFlightService` for consistency
+- Returns detailed `OracleProcessingResult` with performance metrics
+
+**Used By**: StreamingController (REST API endpoints)
+
+**Configuration Requirements**:
+- Oracle database connection configuration in `application.yml`
+- Environment variables for database credentials
+- Access to Sigma production database schema
 **Primary Purpose**: Perform comprehensive arrival punctuality analysis (ICAO KPI14)
 
 **Key Features**:
@@ -152,9 +180,15 @@ File Input → ReplayDataService → DataAnalysisService → FlightDataJoinServi
      ↓              ↓                    ↓                      ↓
 ReplayData    Basic Access        Analysis & Insights    Joined Data
      ↓              ↓                    ↓                      ↓
-StreamingFlightService ← ReplayPath (from API)
+StreamingFlightService ← ReplayPath (from API or Oracle)
      ↓
 MongoDB Storage (flights collection)
+
+Oracle Database → OracleDataExtractionService → StreamingFlightService
+     ↓                      ↓                           ↓
+Sigma Production      ReplayPath Extraction      MongoDB Storage
+     ↓                      ↓                           ↓
+Flight Data          Performance Metrics        Processed Flights
 
 Prediction Input → PredictedFlightService
      ↓                      ↓
@@ -172,6 +206,10 @@ Predicted Flight JSON   Processing & planId mapping
 ### **Database Dependencies**
 - **StreamingFlightService**: Uses FlightRepository for MongoDB operations
 - **PredictedFlightService**: Uses PredictedFlightRepository for MongoDB operations
+- **OracleDataExtractionService**: Uses Oracle JDBC Template and integrates with StreamingFlightService
+
+### **External System Dependencies**
+- **OracleDataExtractionService**: Requires Oracle database connection and Sigma codebase integration
 
 ### **Model Dependencies**
 - **FlightDataJoinService**: Uses ObjectMapper for JSON operations
@@ -181,11 +219,12 @@ Predicted Flight JSON   Processing & planId mapping
 
 ### **When to Use Each Service**
 
-1. **For Real-time Processing**: Use `StreamingFlightService`
-2. **For Predicted Flight Processing**: Use `PredictedFlightService`
-3. **For File Loading**: Use `ReplayDataService`
-4. **For Data Analysis**: Use `DataAnalysisService`
-5. **For Data Joining**: Use `FlightDataJoinService`
+1. **For Production Oracle Integration**: Use `OracleDataExtractionService`
+2. **For Real-time Processing**: Use `StreamingFlightService`
+3. **For Predicted Flight Processing**: Use `PredictedFlightService`
+4. **For File Loading**: Use `ReplayDataService`
+5. **For Data Analysis**: Use `DataAnalysisService`
+6. **For Data Joining**: Use `FlightDataJoinService`
 
 ### **Service Communication**
 
@@ -213,6 +252,13 @@ Predicted Flight JSON   Processing & planId mapping
 - **JSON Processing**: Efficient parsing of complex predicted flight data
 - **planId Mapping**: Automatic mapping of JSON 'id' to 'planId' for comparison
 - **Upsert Operations**: Updates existing predictions or creates new ones
+
+### **OracleDataExtractionService** **NEW**
+- **Database Performance**: Optimized Oracle queries for efficient data extraction
+- **Connection Management**: Proper connection pooling and resource management
+- **Batch Processing**: Processes multiple ReplayPath packets efficiently
+- **Performance Monitoring**: Detailed timing metrics for all operations
+- **Error Recovery**: Robust error handling for database connectivity issues
 
 ### **DataAnalysisService**
 - **Memory Efficient**: Streams data for large datasets

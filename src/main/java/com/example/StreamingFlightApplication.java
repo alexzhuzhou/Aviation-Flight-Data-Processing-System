@@ -29,9 +29,9 @@ public class StreamingFlightApplication {
         System.setProperty("user.timezone", "UTC");
         
         SpringApplication.run(StreamingFlightApplication.class, args);
-        System.out.println("🚀 Streaming Flight Service is running!");
-        System.out.println("⏰ System timezone set to: " + TimeZone.getDefault().getID());
-        System.out.println("📊 Main API endpoints:");
+        System.out.println(" Streaming Flight Service is running!");
+        System.out.println(" System timezone set to: " + TimeZone.getDefault().getID());
+        System.out.println(" Main API endpoints:");
         System.out.println("   POST /api/flights/process-packet           - NEW: Process data directly from Oracle DB");
         System.out.println("   POST /api/flights/process-packet-legacy     - Legacy: Process single ReplayPath packet via HTTP");
         System.out.println("   GET  /api/flights/test-oracle-connection    - NEW: Test Oracle database connectivity");
@@ -44,7 +44,7 @@ public class StreamingFlightApplication {
         System.out.println("   POST /api/predicted-flights/batch           - Batch process predicted flights");
         System.out.println("   GET  /api/predicted-flights/stats           - Get predicted flight statistics");
         System.out.println("   GET  /api/predicted-flights/health          - Health check for predicted flights");
-        System.out.println("🔗 Oracle Integration: Direct connection to Sigma production database");
-        System.out.println("📅 Processing Date: 2025-07-11 (hardcoded as requested)");
+        System.out.println(" Oracle Integration: Direct connection to Sigma production database");
+        System.out.println(" Processing Date: 2025-07-11 ");
     }
 }
