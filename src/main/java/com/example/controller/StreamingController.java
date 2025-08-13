@@ -69,7 +69,7 @@ public class StreamingController {
             // Return appropriate HTTP status based on results
             if (result.getPacketsWithErrors() > 0 && result.getTotalPacketsProcessed() == 0) {
                 // All packets failed
-                return ResponseEntity.internalServerError().body(result);
+                return ResponseEntity.status(500).body(result);
             } else if (result.getPacketsWithErrors() > 0) {
                 // Some packets failed, but some succeeded
                 return ResponseEntity.status(207).body(result); // 207 Multi-Status
@@ -86,7 +86,7 @@ public class StreamingController {
                 "2025-07-11", 
                 "Unexpected error: " + e.getMessage()
             );
-            return ResponseEntity.internalServerError().body(errorResult);
+            return ResponseEntity.status(500).body(errorResult);
         }
     }
     
@@ -110,7 +110,7 @@ public class StreamingController {
             logger.error("Error processing ReplayPath packet via legacy endpoint", e);
             StreamingFlightService.ProcessingResult errorResult = 
                 new StreamingFlightService.ProcessingResult(0, 0, "Error: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(errorResult);
+            return ResponseEntity.status(500).body(errorResult);
         }
     }
     
@@ -140,7 +140,7 @@ public class StreamingController {
             errorResponse.put("connected", false);
             errorResponse.put("error", e.getMessage());
             errorResponse.put("message", "Connection test failed");
-            return ResponseEntity.internalServerError().body(errorResponse);
+            return ResponseEntity.status(500).body(errorResponse);
         }
     }
     
@@ -220,7 +220,7 @@ public class StreamingController {
             
         } catch (Exception e) {
             logger.error("Error getting flight stats", e);
-            return ResponseEntity.internalServerError().build();
+            return ResponseEntity.status(500).build();
         }
     }
     
@@ -236,7 +236,7 @@ public class StreamingController {
             
         } catch (Exception e) {
             logger.error("Error analyzing duplicate indicatives", e);
-            return ResponseEntity.internalServerError().build();
+            return ResponseEntity.status(500).build();
         }
     }
     
@@ -267,7 +267,7 @@ public class StreamingController {
             
         } catch (Exception e) {
             logger.error("Error during cleanup", e);
-            return ResponseEntity.internalServerError().body("Error: " + e.getMessage());
+            return ResponseEntity.status(500).body("Error: " + e.getMessage());
         }
     }
     
@@ -302,7 +302,7 @@ public class StreamingController {
             logger.error("Error retrieving planIds", e);
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("error", "Failed to retrieve planIds: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(errorResponse);
+            return ResponseEntity.status(500).body(errorResponse);
         }
     }
     

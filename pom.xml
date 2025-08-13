@@ -17,10 +17,10 @@
     <description>Aviation Streaming Flight Data Processor with Oracle and Sigma integration</description>
 
     <properties>
-        <maven.compiler.source>15</maven.compiler.source>
-        <maven.compiler.target>15</maven.compiler.target>
+        <maven.compiler.source>13</maven.compiler.source>
+        <maven.compiler.target>13</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <spring.boot.version>2.7.14</spring.boot.version>
+        <spring.boot.version>2.0.1.RELEASE</spring.boot.version>
     </properties>
 
     <dependencies>
@@ -28,6 +28,13 @@
         <dependency>
             <groupId>${project.groupId}</groupId>
             <artifactId>sigma-gsa-commons</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        
+        <!-- Sigma GFX Domain for HistoricFlightIntention and related entities -->
+        <dependency>
+            <groupId>${project.groupId}</groupId>
+            <artifactId>sigma-gfx-domain</artifactId>
             <version>${project.version}</version>
         </dependency>
         
@@ -66,11 +73,41 @@
             <version>${spring.boot.version}</version>
         </dependency>
         
-        <!-- Spring Security OAuth2 Client (required by Spring Security auto-configuration) -->
+        <!-- Spring Security OAuth2 Client - Not available in Spring Boot 2.0.x, removing -->
+        <!-- 
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-oauth2-client</artifactId>
             <version>${spring.boot.version}</version>
+        </dependency>
+        -->
+        
+        <!-- Hibernate ORM for Oracle entity mapping -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+            <version>${spring.boot.version}</version>
+        </dependency>
+        
+        <!-- Hibernate Core - Using Sigma's exact version for compatibility -->
+        <dependency>
+            <groupId>org.hibernate</groupId>
+            <artifactId>hibernate-core</artifactId>
+            <version>5.2.10.jdk13</version>
+        </dependency>
+        
+        <!-- Hibernate Spatial - Using Sigma's exact version -->
+        <dependency>
+            <groupId>org.hibernate</groupId>
+            <artifactId>hibernate-spatial</artifactId>
+            <version>5.2.12.Final</version>
+        </dependency>
+        
+        <!-- JTS Topology Suite for geometric operations -->
+        <dependency>
+            <groupId>com.vividsolutions</groupId>
+            <artifactId>jts</artifactId>
+            <version>1.13</version>
         </dependency>
         
         <!-- Oracle JDBC Driver -->
@@ -117,21 +154,7 @@
             <scope>test</scope>
         </dependency>
         
-        <!-- Testcontainers for MongoDB testing -->
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>junit-jupiter</artifactId>
-            <version>1.18.3</version>
-            <scope>test</scope>
-        </dependency>
-        
-        <!-- Testcontainers MongoDB -->
-        <dependency>
-            <groupId>org.testcontainers</groupId>
-            <artifactId>mongodb</artifactId>
-            <version>1.18.3</version>
-            <scope>test</scope>
-        </dependency>
+        <!-- MongoDB testing with embedded MongoDB or local instance -->
     </dependencies>
 
     <build>
@@ -157,15 +180,7 @@
                     </jvmArguments>
                 </configuration>
             </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.11.0</version>
-                <configuration>
-                    <source>15</source>
-                    <target>15</target>
-                </configuration>
-            </plugin>
+            <!-- Removed maven-compiler-plugin override to inherit Java 13 configuration from parent -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>

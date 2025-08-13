@@ -56,7 +56,7 @@ public class PunctualityAnalysisController {
             logger.error("Error matching predicted with real flights", e);
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("error", "Error matching flights: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(errorResponse);
+            return ResponseEntity.status(500).body(errorResponse);
         }
     }
     
@@ -82,7 +82,7 @@ public class PunctualityAnalysisController {
             logger.error("Error extracting airport coordinates", e);
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("error", "Error extracting airport coordinates: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(errorResponse);
+            return ResponseEntity.status(500).body(errorResponse);
         }
     }
     
@@ -108,7 +108,7 @@ public class PunctualityAnalysisController {
             logger.error("Error finding qualifying flights", e);
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("error", "Error finding qualifying flights: " + e.getMessage());
-            return ResponseEntity.internalServerError().body(errorResponse);
+            return ResponseEntity.status(500).body(errorResponse);
         }
     }
     
@@ -146,7 +146,7 @@ public class PunctualityAnalysisController {
                 java.time.LocalDateTime.now().toString(), 
                 "Error during punctuality analysis: " + e.getMessage()
             );
-            return ResponseEntity.internalServerError().body(errorResult);
+            return ResponseEntity.status(500).body(errorResult);
         }
     }
     
@@ -162,7 +162,7 @@ public class PunctualityAnalysisController {
             
         } catch (Exception e) {
             logger.error("Error getting punctuality analysis statistics", e);
-            return ResponseEntity.internalServerError().build();
+            return ResponseEntity.status(500).build();
         }
     }
     

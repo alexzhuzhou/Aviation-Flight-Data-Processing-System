@@ -49,6 +49,39 @@ public class PredictedFlightService {
             // Convert JSON to PredictedFlightData object
             PredictedFlightData predictedFlight = objectMapper.treeToValue(jsonData, PredictedFlightData.class);
             
+            return processPredictedFlightInternal(predictedFlight);
+            
+        } catch (Exception e) {
+            logger.error("Error processing predicted flight data from JSON", e);
+            return new ProcessingResult(false, "Error processing predicted flight: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Process predicted flight data from Map (extracted from Oracle) and store in database
+     * Uses instanceId for future matching with actual flights' planId
+     */
+    public ProcessingResult processPredictedFlightFromMap(Map<String, Object> flightData) {
+        try {
+            logger.info("Processing predicted flight data from Oracle for indicative: {}", 
+                flightData.get("indicative"));
+            
+            // Convert Map to PredictedFlightData object
+            PredictedFlightData predictedFlight = objectMapper.convertValue(flightData, PredictedFlightData.class);
+            
+            return processPredictedFlightInternal(predictedFlight);
+            
+        } catch (Exception e) {
+            logger.error("Error processing predicted flight data from Map", e);
+            return new ProcessingResult(false, "Error processing predicted flight: " + e.getMessage());
+        }
+    }
+    
+    /**
+     * Internal method to process PredictedFlightData object
+     */
+    private ProcessingResult processPredictedFlightInternal(PredictedFlightData predictedFlight) {
+        try {
             // Validate that instanceId exists
             if (predictedFlight.getInstanceId() == 0) {
                 return new ProcessingResult(false, "Missing instanceId for predicted flight: " + predictedFlight.getIndicative());
@@ -83,7 +116,7 @@ public class PredictedFlightService {
                 " (instanceId: " + saved.getInstanceId() + ")");
             
         } catch (Exception e) {
-            logger.error("Error processing predicted flight data", e);
+            logger.error("Error processing predicted flight data internally", e);
             return new ProcessingResult(false, "Error processing predicted flight: " + e.getMessage());
         }
     }

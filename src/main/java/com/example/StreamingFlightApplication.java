@@ -13,11 +13,13 @@ import java.util.TimeZone;
  * from the Sigma production database.
  */
 @SpringBootApplication(exclude = {
-    org.springframework.boot.autoconfigure.security.oauth2.client.servlet.OAuth2ClientAutoConfiguration.class,
     org.springframework.boot.autoconfigure.ldap.LdapAutoConfiguration.class,
     org.springframework.boot.autoconfigure.quartz.QuartzAutoConfiguration.class,
     org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration.class,
-    org.springframework.boot.autoconfigure.integration.IntegrationAutoConfiguration.class
+    org.springframework.boot.autoconfigure.integration.IntegrationAutoConfiguration.class,
+    // Additional JPA-related exclusions to prevent jpaContext bean creation
+    org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration.class,
+    org.springframework.boot.autoconfigure.transaction.jta.JtaAutoConfiguration.class
 })
 @EnableMongoRepositories
 @ComponentScan(basePackages = {"com.example", "br.atech.pista.dam"})
@@ -28,23 +30,59 @@ public class StreamingFlightApplication {
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
         System.setProperty("user.timezone", "UTC");
         
-        SpringApplication.run(StreamingFlightApplication.class, args);
-        System.out.println(" Streaming Flight Service is running!");
-        System.out.println(" System timezone set to: " + TimeZone.getDefault().getID());
-        System.out.println(" Main API endpoints:");
-        System.out.println("   POST /api/flights/process-packet           - NEW: Process data directly from Oracle DB");
-        System.out.println("   POST /api/flights/process-packet-legacy     - Legacy: Process single ReplayPath packet via HTTP");
-        System.out.println("   GET  /api/flights/test-oracle-connection    - NEW: Test Oracle database connectivity");
-        System.out.println("   GET  /api/flights/plan-ids                  - Get all planIds for prediction scripts");
-        System.out.println("   GET  /api/flights/stats                     - Get flight statistics");
-        System.out.println("   GET  /api/flights/health                    - Health check");
-        System.out.println("   GET  /api/flights/analyze-duplicates        - Analyze duplicate indicatives");
-        System.out.println("   POST /api/flights/cleanup-duplicates        - Clean up duplicate tracking points");
-        System.out.println("   POST /api/predicted-flights/process         - Process single predicted flight");
-        System.out.println("   POST /api/predicted-flights/batch           - Batch process predicted flights");
-        System.out.println("   GET  /api/predicted-flights/stats           - Get predicted flight statistics");
-        System.out.println("   GET  /api/predicted-flights/health          - Health check for predicted flights");
-        System.out.println(" Oracle Integration: Direct connection to Sigma production database");
-        System.out.println(" Processing Date: 2025-07-11 ");
+        try {
+            System.out.println("🚀 Starting Aviation Flight Data Processing System...");
+            SpringApplication app = new SpringApplication(StreamingFlightApplication.class);
+            
+            // Add shutdown hook to debug what's causing the shutdown
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                System.out.println("⚠️  Application is shutting down...");
+                System.out.println("⚠️  Check logs above for any errors that might have caused this shutdown");
+            }));
+            
+            var context = app.run(args);
+            
+            System.out.println("✅ Application context started successfully!");
+            System.out.println("🔍 Context active: " + context.isActive());
+            System.out.println("🔍 Context running: " + context.isRunning());
+            
+        } catch (Exception e) {
+            System.err.println("❌ Application failed to start:");
+            e.printStackTrace();
+            System.exit(1);
+        }
+        System.out.println("🚀 Aviation Flight Data Processing System is running!");
+        System.out.println("⏰ System timezone set to: " + TimeZone.getDefault().getID());
+        System.out.println("");
+        System.out.println("📋 Main API endpoints:");
+        System.out.println("   🗄️  Oracle Integration:");
+        System.out.println("   POST /api/flights/process-packet              - Process data directly from Oracle DB");
+        System.out.println("   GET  /api/flights/test-oracle-connection      - Test Oracle database connectivity");
+        System.out.println("   GET  /api/flights/plan-ids                    - Get all planIds for predictions");
+        System.out.println("");
+        System.out.println("   🎯 Predicted Flights (Oracle-based):");
+        System.out.println("   POST /api/predicted-flights/process           - Process single planId from Oracle");
+        System.out.println("   POST /api/predicted-flights/batch             - Batch process multiple planIds");
+        System.out.println("   GET  /api/predicted-flights/stats             - Get predicted flight statistics");
+        System.out.println("");
+        System.out.println("   📈 Punctuality Analysis (ICAO KPI14):");
+        System.out.println("   GET  /api/punctuality-analysis/match-flights  - Match predicted with real flights");
+        System.out.println("   GET  /api/punctuality-analysis/run            - Run full punctuality analysis");
+        System.out.println("   GET  /api/punctuality-analysis/stats          - Get analysis statistics");
+        System.out.println("");
+        System.out.println("   📊 Statistics & Health:");
+        System.out.println("   GET  /api/flights/stats                       - Get flight statistics");
+        System.out.println("   GET  /api/flights/health                      - Health check");
+        System.out.println("   GET  /api/predicted-flights/health            - Predicted flights health");
+        System.out.println("   GET  /api/punctuality-analysis/health         - Analysis health check");
+        System.out.println("");
+        System.out.println("   🔧 Legacy & Utilities:");
+        System.out.println("   POST /api/flights/process-packet-legacy       - Legacy JSON packet processing");
+        System.out.println("   GET  /api/flights/analyze-duplicates          - Analyze duplicate indicatives");
+        System.out.println("   POST /api/flights/cleanup-duplicates          - Clean up duplicate tracking points");
+        System.out.println("");
+        System.out.println("🔗 Oracle Integration: Direct connection to Sigma production database");
+        System.out.println("📅 Processing Date: 2025-07-11");
+        System.out.println("📖 Complete API Guide: See API_USAGE_GUIDE.md for detailed examples");
     }
 }

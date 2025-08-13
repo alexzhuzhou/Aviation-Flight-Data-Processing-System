@@ -166,14 +166,23 @@ mvn exec:java -Dexec.mainClass="com.example.App"
 | `GET` | `/api/flights/analyze-duplicates` | Analyze duplicate indicatives | None |
 | `POST` | `/api/flights/cleanup-duplicates` | Clean up duplicate tracking points | None |
 
-### Predicted Flight Endpoints
+### **🆕 Oracle-Based Predicted Flight Endpoints**
 
 | Method | Endpoint | Description | Input Format |
 |--------|----------|-------------|--------------|
-| `POST` | `/api/predicted-flights/process` | Process predicted flight data | Predicted flight JSON object |
-| `POST` | `/api/predicted-flights/batch` | **NEW:** Batch process multiple predicted flights | Array of predicted flight objects |
+| `POST` | `/api/predicted-flights/process` | **NEW:** Process single planId from Oracle | `{"planId": 17879345}` |
+| `POST` | `/api/predicted-flights/batch` | **NEW:** Batch process multiple planIds from Oracle | `{"planIds": [17879345, 17879346]}` |
 | `GET` | `/api/predicted-flights/stats` | Get predicted flight statistics | None |
 | `GET` | `/api/predicted-flights/health` | Health check for predicted flights service | None |
+
+### Punctuality Analysis Endpoints
+
+| Method | Endpoint | Description | Input Format |
+|--------|----------|-------------|--------------|
+| `GET` | `/api/punctuality-analysis/match-flights` | Match predicted flights with real flights | None |
+| `GET` | `/api/punctuality-analysis/run` | Run full punctuality analysis (ICAO KPI14) | None |
+| `GET` | `/api/punctuality-analysis/stats` | Get analysis statistics | None |
+| `GET` | `/api/punctuality-analysis/health` | Health check for punctuality analysis | None |
 
 ### Important API Notes
 
@@ -216,26 +225,46 @@ curl http://localhost:8080/api/flights/stats
 curl http://localhost:8080/api/flights/plan-ids
 ```
 
-#### Predicted Flights API
+#### **🆕 Oracle-Based Predicted Flights API**
 
 ```bash
-# Process single predicted flight data
+# Process single planId from Oracle database
 curl -X POST http://localhost:8080/api/predicted-flights/process \
   -H "Content-Type: application/json" \
-  -d '{
-    "instanceId": 17879345,
-    "routeId": 51435982,
-    "id": 51637804,
-    "indicative": "TAM3886",
-    "time": "[Thu Jul 10 22:25:00 UTC 2025,Fri Jul 11 00:00:00 UTC 2025]",
-    "routeElements": [...],
-    "routeSegments": [...]
-  }'
+  -d '{"planId": 17879345}'
 
-# NEW: Batch process multiple predicted flights (efficient for 1000+ records)
+# Response example:
+{
+  "totalRequested": 1,
+  "totalProcessed": 1,
+  "totalNotFound": 0,
+  "totalErrors": 0,
+  "processedPlanIds": [17879345],
+  "notFoundPlanIds": [],
+  "errorPlanIds": [],
+  "extractionTimeMs": 45,
+  "processingTimeMs": 123,
+  "message": "Successfully processed 1 out of 1 requested planIds"
+}
+
+# Batch process multiple planIds from Oracle database
 curl -X POST http://localhost:8080/api/predicted-flights/batch \
   -H "Content-Type: application/json" \
-  -d @predicted_flights_batch.json
+  -d '{"planIds": [17879345, 17879346, 17879347]}'
+
+# Response example:
+{
+  "totalRequested": 3,
+  "totalProcessed": 2,
+  "totalNotFound": 1,
+  "totalErrors": 0,
+  "processedPlanIds": [17879345, 17879346],
+  "notFoundPlanIds": [17879347],
+  "errorPlanIds": [],
+  "extractionTimeMs": 89,
+  "processingTimeMs": 234,
+  "message": "Successfully processed 2 out of 3 requested planIds. 1 planId not found in Oracle database."
+}
 
 # Get predicted flight statistics
 curl http://localhost:8080/api/predicted-flights/stats
@@ -244,54 +273,226 @@ curl http://localhost:8080/api/predicted-flights/stats
 curl http://localhost:8080/api/predicted-flights/health
 ```
 
+#### **🆕 Punctuality Analysis API**
+
+```bash
+# Match predicted flights with real flights
+curl http://localhost:8080/api/punctuality-analysis/match-flights
+
+# Response example:
+{
+  "totalPredictedFlights": 150,
+  "totalRealFlights": 200,
+  "totalMatched": 145,
+  "matchingRate": 96.7,
+  "matchedFlights": [
+    {
+      "planId": 17879345,
+      "predictedIndicative": "TAM3886",
+      "realIndicative": "TAM3886",
+      "predictedTime": "2025-07-11T10:30:00Z",
+      "realTime": "2025-07-11T10:32:15Z",
+      "timeDifferenceMinutes": 2.25
+    }
+  ],
+  "processingTimeMs": 456
+}
+
+# Run full punctuality analysis (ICAO KPI14)
+curl http://localhost:8080/api/punctuality-analysis/run
+
+# Response example:
+{
+  "totalMatchedFlights": 145,
+  "totalAnalyzedFlights": 140,
+  "delayToleranceWindows": [
+    {
+      "windowDescription": "± 3 minutes",
+      "toleranceMinutes": 3,
+      "flightsWithinTolerance": 85,
+      "percentageWithinTolerance": 60.7,
+      "kpiOutput": "60.7% of flights where predicted time was within ± 3 minutes of actual time"
+    },
+    {
+      "windowDescription": "± 5 minutes", 
+      "toleranceMinutes": 5,
+      "flightsWithinTolerance": 112,
+      "percentageWithinTolerance": 80.0,
+      "kpiOutput": "80.0% of flights where predicted time was within ± 5 minutes of actual time"
+    },
+    {
+      "windowDescription": "± 15 minutes",
+      "toleranceMinutes": 15,
+      "flightsWithinTolerance": 134,
+      "percentageWithinTolerance": 95.7,
+      "kpiOutput": "95.7% of flights where predicted time was within ± 15 minutes of actual time"
+    }
+  ],
+  "analysisTimestamp": "2024-12-19T10:30:45Z",
+  "processingTimeMs": 1234,
+  "message": "Analysis completed: 145 predicted flights matched, 140 analyzed successfully"
+}
+
+# Get analysis statistics
+curl http://localhost:8080/api/punctuality-analysis/stats
+
+# Health check
+curl http://localhost:8080/api/punctuality-analysis/health
+```
+
+## 🚀 **NEW: Oracle Integration Workflow**
+
+### **Complete Oracle-Based Processing Pipeline**
+
+The application now provides a complete Oracle-based workflow that eliminates the need for external JSON files:
+
+#### **Step 1: Test Oracle Connection**
+```bash
+# Verify Oracle database connectivity
+curl http://localhost:8080/api/flights/test-oracle-connection
+
+# Expected response:
+{
+  "status": "SUCCESS",
+  "message": "Oracle connection successful",
+  "connectionTimeMs": 234,
+  "databaseInfo": {
+    "host": "10.103.3.8:1521",
+    "serviceName": "SIGMA_PLT3_DEV1_APP",
+    "username": "sigma"
+  }
+}
+```
+
+#### **Step 2: Process Flight Data from Oracle**
+```bash
+# Extract and process flight data directly from Oracle database
+curl -X POST http://localhost:8080/api/flights/process-packet
+
+# Expected response:
+{
+  "status": "SUCCESS",
+  "totalFlightsExtracted": 1243,
+  "totalFlightsProcessed": 1200,
+  "totalTrackingPoints": 45678,
+  "extractionTimeMs": 2345,
+  "processingTimeMs": 5678,
+  "message": "Successfully processed 1200 flights from Oracle database for date 2025-07-11"
+}
+```
+
+#### **Step 3: Get Available PlanIds for Predictions**
+```bash
+# Get all planIds that can be used for prediction generation
+curl http://localhost:8080/api/flights/plan-ids
+
+# Expected response:
+{
+  "totalCount": 1200,
+  "planIds": [17879345, 17879346, 17879347, ...],
+  "processingTimeMs": 45,
+  "message": "Retrieved planIds from processed flights"
+}
+```
+
+#### **Step 4: Process Predicted Flights from Oracle**
+```bash
+# Process single planId prediction
+curl -X POST http://localhost:8080/api/predicted-flights/process \
+  -H "Content-Type: application/json" \
+  -d '{"planId": 17879345}'
+
+# Process multiple planIds in batch
+curl -X POST http://localhost:8080/api/predicted-flights/batch \
+  -H "Content-Type: application/json" \
+  -d '{"planIds": [17879345, 17879346, 17879347]}'
+```
+
+#### **Step 5: Run Punctuality Analysis**
+```bash
+# Match predicted flights with real flights and analyze punctuality
+curl http://localhost:8080/api/punctuality-analysis/run
+
+# Get detailed flight matching information
+curl http://localhost:8080/api/punctuality-analysis/match-flights
+```
+
+### **Oracle Integration Benefits**
+
+- ✅ **No External Files**: Direct database access eliminates JSON file dependencies
+- ✅ **Real Production Data**: Uses actual Sigma production database
+- ✅ **Automatic Processing**: Processes hardcoded date (2025-07-11) automatically
+- ✅ **Performance Metrics**: Detailed timing for all database operations
+- ✅ **Error Handling**: Comprehensive error reporting and recovery
+- ✅ **Option A Strategy**: Skip missing planIds, report detailed statistics
+
 ## 🚀 **NEW: Batch Processing Workflow**
 
-### **Efficient Prediction Data Processing**
+### **Efficient Oracle-Based Prediction Processing**
 
-For processing large batches of predicted flight data (1000+ records), use this optimized workflow:
+For processing large batches of predicted flight data using Oracle database integration:
 
-#### **Step 1: Get All PlanIds**
+#### **Step 1: Process Real Flight Data from Oracle**
 ```bash
-# Get all planIds from actual flight data
+# First, extract and process real flight data from Oracle
+curl -X POST http://localhost:8080/api/flights/process-packet
+
+# This populates the database with real flight data for comparison
+```
+
+#### **Step 2: Get All Available PlanIds**
+```bash
+# Get all planIds from processed real flight data
 curl http://localhost:8080/api/flights/plan-ids
+
 # Response: {"totalCount": 1243, "planIds": [17871744, 17873112, ...], "processingTimeMs": 45}
 ```
 
-#### **Step 2: Generate Predictions** 
+#### **Step 3: Generate Predictions Using Oracle Data** 
 ```python
-# In your prediction script
+# In your prediction script - now using Oracle-extracted planIds
 import requests
 
-# Get planIds
+# Get planIds from Oracle-processed data
 response = requests.get("http://localhost:8080/api/flights/plan-ids")
 data = response.json()
 planIds = data["planIds"]  # [17871744, 17873112, ...]
 
-# Generate predictions for all planIds
-predictedFlights = []
-for planId in planIds:
-    predicted = generatePredictedFlight(planId)  # Your prediction logic
-    predictedFlights.append(predicted)
+# Generate predictions for Oracle planIds
+# Your prediction algorithm can now use the same planIds that exist in the real data
 ```
 
-#### **Step 3: Batch Upload** 
+#### **Step 4: Process Predictions via Oracle Integration** 
 ```python
-# Send all predictions in one efficient batch
+# Send planIds for Oracle-based prediction processing
+# The system will extract flight data from Oracle for each planId
+planIds_to_process = [17879345, 17879346, 17879347]
+
 result = requests.post(
     "http://localhost:8080/api/predicted-flights/batch",
-    json=predictedFlights
+    json={"planIds": planIds_to_process}
 )
 
-print(f"Processed: {result.json()}")
-# Response: {"totalReceived": 1243, "totalProcessed": 1200, "totalSkipped": 43, "totalFailed": 0}
+print(f"Oracle Processing Result: {result.json()}")
+# Response: {
+#   "totalRequested": 3,
+#   "totalProcessed": 2, 
+#   "totalNotFound": 1,
+#   "totalErrors": 0,
+#   "processedPlanIds": [17879345, 17879346],
+#   "notFoundPlanIds": [17879347],
+#   "errorPlanIds": [],
+#   "extractionTimeMs": 89,
+#   "processingTimeMs": 234
+# }
 ```
 
-### **Batch Processing Features**
-- ✅ **Optimal Performance**: Processes 500 records per database batch
-- ✅ **Skip Duplicates**: Automatically skips existing planIds
-- ✅ **Error Resilience**: Saves what it can, reports failures
-- ✅ **Progress Tracking**: Detailed processing metrics
-- ✅ **Transaction Safety**: Database consistency guaranteed
+### **Oracle-Based Batch Processing Features**
+- ✅ **Direct Oracle Access**: Extracts flight data directly from Sigma database
+- ✅ **Option A Error Handling**: Skip missing planIds, report detailed statistics  
+- ✅ **Performance Metrics**: Separate timing for extraction vs processing
+- ✅ **Automatic Data Validation**: Ensures planIds exist in Oracle before processing
+- ✅ **Detailed Reporting**: Complete breakdown of processed, not found, and error planIds
 
 ##  Configuration
 
