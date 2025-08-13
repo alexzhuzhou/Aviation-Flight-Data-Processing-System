@@ -57,9 +57,7 @@ Thumbs.db
 # Use the .template and .example files instead
 src/main/java/com/example/resources/application.yml
 src/main/resources/application.yml
-src/main/java/com/example/config/OracleConfig.java
-src/main/java/com/example/config/SigmaConfig.java
-src/main/java/com/example/config/SecurityConfig.java
+
 src/test/java/com/example/OracleConnectionTest.java
 
 # Data folders

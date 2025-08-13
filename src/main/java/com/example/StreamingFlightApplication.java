@@ -31,58 +31,58 @@ public class StreamingFlightApplication {
         System.setProperty("user.timezone", "UTC");
         
         try {
-            System.out.println("🚀 Starting Aviation Flight Data Processing System...");
+            System.out.println(" Starting Aviation Flight Data Processing System...");
             SpringApplication app = new SpringApplication(StreamingFlightApplication.class);
             
             // Add shutdown hook to debug what's causing the shutdown
             Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-                System.out.println("⚠️  Application is shutting down...");
-                System.out.println("⚠️  Check logs above for any errors that might have caused this shutdown");
+                System.out.println("  Application is shutting down...");
+                System.out.println("  Check logs above for any errors that might have caused this shutdown");
             }));
             
             var context = app.run(args);
             
-            System.out.println("✅ Application context started successfully!");
-            System.out.println("🔍 Context active: " + context.isActive());
-            System.out.println("🔍 Context running: " + context.isRunning());
+            System.out.println(" Application context started successfully!");
+            System.out.println(" Context active: " + context.isActive());
+            System.out.println(" Context running: " + context.isRunning());
             
         } catch (Exception e) {
-            System.err.println("❌ Application failed to start:");
+            System.err.println(" Application failed to start:");
             e.printStackTrace();
             System.exit(1);
         }
-        System.out.println("🚀 Aviation Flight Data Processing System is running!");
-        System.out.println("⏰ System timezone set to: " + TimeZone.getDefault().getID());
+        System.out.println(" Aviation Flight Data Processing System is running!");
+        System.out.println(" System timezone set to: " + TimeZone.getDefault().getID());
         System.out.println("");
-        System.out.println("📋 Main API endpoints:");
-        System.out.println("   🗄️  Oracle Integration:");
+        System.out.println(" Main API endpoints:");
+        System.out.println("     Oracle Integration:");
         System.out.println("   POST /api/flights/process-packet              - Process data directly from Oracle DB");
         System.out.println("   GET  /api/flights/test-oracle-connection      - Test Oracle database connectivity");
         System.out.println("   GET  /api/flights/plan-ids                    - Get all planIds for predictions");
         System.out.println("");
-        System.out.println("   🎯 Predicted Flights (Oracle-based):");
+        System.out.println("    Predicted Flights (Oracle-based):");
         System.out.println("   POST /api/predicted-flights/process           - Process single planId from Oracle");
         System.out.println("   POST /api/predicted-flights/batch             - Batch process multiple planIds");
         System.out.println("   GET  /api/predicted-flights/stats             - Get predicted flight statistics");
         System.out.println("");
-        System.out.println("   📈 Punctuality Analysis (ICAO KPI14):");
+        System.out.println("    Punctuality Analysis (ICAO KPI14):");
         System.out.println("   GET  /api/punctuality-analysis/match-flights  - Match predicted with real flights");
         System.out.println("   GET  /api/punctuality-analysis/run            - Run full punctuality analysis");
         System.out.println("   GET  /api/punctuality-analysis/stats          - Get analysis statistics");
         System.out.println("");
-        System.out.println("   📊 Statistics & Health:");
+        System.out.println("    Statistics & Health:");
         System.out.println("   GET  /api/flights/stats                       - Get flight statistics");
         System.out.println("   GET  /api/flights/health                      - Health check");
         System.out.println("   GET  /api/predicted-flights/health            - Predicted flights health");
         System.out.println("   GET  /api/punctuality-analysis/health         - Analysis health check");
         System.out.println("");
-        System.out.println("   🔧 Legacy & Utilities:");
+        System.out.println("    Legacy & Utilities:");
         System.out.println("   POST /api/flights/process-packet-legacy       - Legacy JSON packet processing");
         System.out.println("   GET  /api/flights/analyze-duplicates          - Analyze duplicate indicatives");
         System.out.println("   POST /api/flights/cleanup-duplicates          - Clean up duplicate tracking points");
         System.out.println("");
-        System.out.println("🔗 Oracle Integration: Direct connection to Sigma production database");
-        System.out.println("📅 Processing Date: 2025-07-11");
-        System.out.println("📖 Complete API Guide: See API_USAGE_GUIDE.md for detailed examples");
+        System.out.println(" Oracle Integration: Direct connection to Sigma production database");
+        System.out.println(" Processing Date: 2025-07-11");
+        System.out.println(" Complete API Guide: See API_USAGE_GUIDE.md for detailed examples");
     }
 }
