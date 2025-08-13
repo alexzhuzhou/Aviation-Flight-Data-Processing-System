@@ -50,10 +50,11 @@ public class OracleFlightDataService {
         try {
             logger.debug("Extracting flight data for planId: {}", planId);
             
-            // Use EXACT same approach as SimpleHibernateTest
+            // Use EXACT same approach as SimpleHibernateTest with additional fetch for routeElements
             String jpql = "SELECT hfi FROM HistoricFlightIntention hfi " +
                          "LEFT JOIN FETCH hfi.sessionRoute sr " +
                          "LEFT JOIN FETCH sr.routeSegments " +
+                         "LEFT JOIN FETCH sr.routeElements " +
                          "WHERE hfi.instanceId = ?";
             
             System.out.println("Query: " + jpql);
