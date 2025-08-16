@@ -19,6 +19,15 @@ public class BatchProcessingResult {
     private List<String> skippedDetails; // Detailed information about skipped records
     private Map<String, Integer> skipReasons; // Summary of skip reasons
     
+    // Additional fields for auto-sync functionality
+    private int totalRequested;
+    private int totalNotFound;
+    private int totalErrors;
+    private long extractionTimeMs;
+    private List<Long> processedPlanIds;
+    private List<Long> notFoundPlanIds;
+    private List<Long> errorPlanIds;
+    
     // Default constructor
     public BatchProcessingResult() {}
     
@@ -89,6 +98,28 @@ public class BatchProcessingResult {
     
     public Map<String, Integer> getSkipReasons() { return skipReasons; }
     public void setSkipReasons(Map<String, Integer> skipReasons) { this.skipReasons = skipReasons; }
+    
+    // Auto-sync specific getters and setters
+    public int getTotalRequested() { return totalRequested; }
+    public void setTotalRequested(int totalRequested) { this.totalRequested = totalRequested; }
+    
+    public int getTotalNotFound() { return totalNotFound; }
+    public void setTotalNotFound(int totalNotFound) { this.totalNotFound = totalNotFound; }
+    
+    public int getTotalErrors() { return totalErrors; }
+    public void setTotalErrors(int totalErrors) { this.totalErrors = totalErrors; }
+    
+    public long getExtractionTimeMs() { return extractionTimeMs; }
+    public void setExtractionTimeMs(long extractionTimeMs) { this.extractionTimeMs = extractionTimeMs; }
+    
+    public List<Long> getProcessedPlanIds() { return processedPlanIds; }
+    public void setProcessedPlanIds(List<Long> processedPlanIds) { this.processedPlanIds = processedPlanIds; }
+    
+    public List<Long> getNotFoundPlanIds() { return notFoundPlanIds; }
+    public void setNotFoundPlanIds(List<Long> notFoundPlanIds) { this.notFoundPlanIds = notFoundPlanIds; }
+    
+    public List<Long> getErrorPlanIds() { return errorPlanIds; }
+    public void setErrorPlanIds(List<Long> errorPlanIds) { this.errorPlanIds = errorPlanIds; }
     
     // Utility methods
     public boolean hasErrors() {

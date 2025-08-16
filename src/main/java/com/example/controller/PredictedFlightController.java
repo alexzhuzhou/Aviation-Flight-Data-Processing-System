@@ -2,8 +2,10 @@ package com.example.controller;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -16,8 +18,12 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.model.BatchProcessingResult;
+import com.example.model.JoinedFlightData;
 import com.example.model.OracleExtractionResponse;
 import com.example.model.PlanIdRequest;
+import com.example.model.PredictedFlightData;
+import com.example.repository.FlightRepository;
 import com.example.service.OracleFlightDataService;
 import com.example.service.PredictedFlightService;
 
@@ -39,6 +45,9 @@ public class PredictedFlightController {
     
     @Autowired
     private PredictedFlightService predictedFlightService;
+    
+    @Autowired
+    private FlightRepository flightRepository;
     
     /**
      * Process predicted flight data from Oracle database using planId
@@ -291,5 +300,131 @@ public class PredictedFlightController {
                    extractionResult.getTotalNotFound(), errorPlanIds.size());
         
         return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * NEW: Auto-sync predicted flights based on real flights in database
+     * 
+     * This endpoint:
+     * 1. Gets all planIds from real flights in the database
+     * 2. Automatically fetches predicted flight data for those planIds from Oracle
+     * 3. Returns comprehensive sync results
+     * 
+     * @return Auto-sync processing results
+     */
+    @PostMapping("/auto-sync")
+    public ResponseEntity<Map<String, Object>> autoSyncPredictedFlights() {
+        logger.info("Starting auto-sync of predicted flights based on real flight planIds");
+        
+        long startTime = System.currentTimeMillis();
+        
+        try {
+            // Step 1: Get all planIds from real flights
+            List<Long> realFlightPlanIds = getAllRealFlightPlanIds();
+            
+            if (realFlightPlanIds.isEmpty()) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("status", "NO_DATA");
+                response.put("message", "No real flights found in database");
+                response.put("processingTimeMs", System.currentTimeMillis() - startTime);
+                return ResponseEntity.ok(response);
+            }
+            
+            logger.info("Found {} real flights, fetching corresponding predicted flights", realFlightPlanIds.size());
+            
+            // Step 2: Process predicted flights for all real flight planIds
+            BatchProcessingResult batchResult = new BatchProcessingResult();
+            batchResult.setTotalRequested(realFlightPlanIds.size());
+            
+            // Use existing batch processing logic
+            OracleFlightDataService.OracleExtractionResult extractionResult = oracleFlightDataService.extractFlightDataBatch(realFlightPlanIds);
+            batchResult.setExtractionTimeMs(0); // OracleExtractionResult doesn't have extraction time
+            batchResult.setTotalNotFound(extractionResult.getTotalNotFound());
+            batchResult.setNotFoundPlanIds(extractionResult.getNotFoundPlanIds());
+            
+            long processingStartTime = System.currentTimeMillis();
+            List<Long> processedPlanIds = new ArrayList<>();
+            List<Long> errorPlanIds = new ArrayList<>();
+            
+            // Process each extracted flight
+            for (Map<String, Object> flightData : extractionResult.getExtractedFlights()) {
+                try {
+                    PredictedFlightService.ProcessingResult result = predictedFlightService.processPredictedFlightFromMap(flightData);
+                    Long planId = (Long) flightData.get("instanceId");
+                    if (result.isSuccess()) {
+                        processedPlanIds.add(planId);
+                        logger.debug("Successfully processed predicted flight for planId: {}", planId);
+                    } else {
+                        errorPlanIds.add(planId);
+                        logger.error("Failed to process predicted flight for planId {}: {}", planId, result.getMessage());
+                    }
+                } catch (Exception e) {
+                    Long planId = (Long) flightData.get("instanceId");
+                    errorPlanIds.add(planId);
+                    logger.error("Error processing extracted flight data for planId {}: {}", planId, e.getMessage());
+                }
+            }
+            
+            batchResult.setTotalProcessed(processedPlanIds.size());
+            batchResult.setTotalErrors(errorPlanIds.size());
+            batchResult.setProcessedPlanIds(processedPlanIds);
+            batchResult.setErrorPlanIds(errorPlanIds);
+            batchResult.setProcessingTimeMs(System.currentTimeMillis() - processingStartTime);
+            
+            // Step 3: Build comprehensive response
+            long totalProcessingTime = System.currentTimeMillis() - startTime;
+            Map<String, Object> response = new HashMap<>();
+            response.put("status", "SUCCESS");
+            response.put("totalRealFlights", realFlightPlanIds.size());
+            response.put("totalRequested", batchResult.getTotalRequested());
+            response.put("totalProcessed", batchResult.getTotalProcessed());
+            response.put("totalNotFound", batchResult.getTotalNotFound());
+            response.put("totalErrors", batchResult.getTotalErrors());
+            response.put("extractionTimeMs", batchResult.getExtractionTimeMs());
+            response.put("processingTimeMs", batchResult.getProcessingTimeMs());
+            response.put("totalTimeMs", totalProcessingTime);
+            response.put("processedPlanIds", batchResult.getProcessedPlanIds());
+            response.put("notFoundPlanIds", batchResult.getNotFoundPlanIds());
+            response.put("errorPlanIds", batchResult.getErrorPlanIds());
+            response.put("message", String.format("Auto-sync completed: %d predicted flights processed out of %d real flights (%d not found, %d errors)", 
+                                                batchResult.getTotalProcessed(), realFlightPlanIds.size(), 
+                                                batchResult.getTotalNotFound(), batchResult.getTotalErrors()));
+            
+            logger.info("Auto-sync completed: {} processed, {} not found, {} errors, {}ms total", 
+                       batchResult.getTotalProcessed(), batchResult.getTotalNotFound(), 
+                       batchResult.getTotalErrors(), totalProcessingTime);
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (Exception e) {
+            logger.error("Error during auto-sync of predicted flights", e);
+            
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("status", "ERROR");
+            errorResponse.put("error", "Auto-sync failed: " + e.getMessage());
+            errorResponse.put("processingTimeMs", System.currentTimeMillis() - startTime);
+            
+            return ResponseEntity.status(500).body(errorResponse);
+        }
+    }
+    
+    /**
+     * Helper method to get all planIds from real flights in the database
+     */
+    private List<Long> getAllRealFlightPlanIds() {
+        try {
+            // Use the existing flight repository to get all planIds efficiently
+            List<JoinedFlightData> allFlights = flightRepository.findAllPlanIdsProjection();
+            
+            return allFlights.stream()
+                .map(JoinedFlightData::getPlanId)
+                .distinct()
+                .sorted()
+                .collect(Collectors.toList());
+                
+        } catch (Exception e) {
+            logger.error("Error retrieving real flight planIds", e);
+            return new ArrayList<>();
+        }
     }
 }

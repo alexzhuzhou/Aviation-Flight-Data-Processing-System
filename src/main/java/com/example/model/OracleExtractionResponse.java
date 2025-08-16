@@ -1,6 +1,7 @@
 package com.example.model;
 
 import java.util.List;
+import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -41,6 +42,9 @@ public class OracleExtractionResponse {
     
     @JsonProperty("extractionTimeMs")
     private long extractionTimeMs;
+    
+    @JsonProperty("extractedFlights")
+    private List<Map<String, Object>> extractedFlights;
     
     // Constructors
     public OracleExtractionResponse() {}
@@ -124,6 +128,14 @@ public class OracleExtractionResponse {
     
     public void setExtractionTimeMs(long extractionTimeMs) {
         this.extractionTimeMs = extractionTimeMs;
+    }
+    
+    public List<Map<String, Object>> getExtractedFlights() {
+        return extractedFlights;
+    }
+    
+    public void setExtractedFlights(List<Map<String, Object>> extractedFlights) {
+        this.extractedFlights = extractedFlights;
     }
     
     /**

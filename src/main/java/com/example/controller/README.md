@@ -18,7 +18,7 @@ The API provides endpoints for real-time processing of aviation flight tracking 
 
 These endpoints handle actual flight tracking data with Oracle database integration and real-time packet processing.
 
-### **1. Process Flight Data from Oracle** 🚀 **NEW**
+### **1. Process Flight Data from Oracle**  **NEW**
 **POST** `/api/flights/process-packet`
 
 Processes flight data directly from the Sigma Oracle database for the hardcoded date (2025-07-11). This is the main production endpoint that replaces JSON-based input with direct database access.
@@ -49,7 +49,7 @@ None required - triggers automatic processing from Oracle database.
 
 ---
 
-### **2. Test Oracle Connection** 🔗 **NEW**
+### **2. Test Oracle Connection**  **NEW**
 **GET** `/api/flights/test-oracle-connection`
 
 Tests the connection to the Sigma Oracle database and returns connection status.
@@ -70,7 +70,7 @@ Tests the connection to the Sigma Oracle database and returns connection status.
 
 ---
 
-### **3. Integration Summary** 📊 **NEW**
+### **3. Integration Summary**  **NEW**
 **GET** `/api/flights/integration-summary`
 
 Provides comprehensive summary of the Oracle integration status, database statistics, and processing capabilities.
@@ -108,7 +108,7 @@ Provides comprehensive summary of the Oracle integration status, database statis
 
 ---
 
-### **4. Process Legacy Packet** 📦
+### **4. Process Legacy Packet** 
 **POST** `/api/flights/process-packet-legacy`
 
 Processes a single ReplayPath packet containing flight intentions and tracking points (legacy JSON input method).
@@ -158,7 +158,7 @@ Processes a single ReplayPath packet containing flight intentions and tracking p
 
 ---
 
-### **5. Get Plan IDs** 🆔
+### **5. Get Plan IDs** 
 **GET** `/api/flights/plan-ids`
 
 Retrieves all planIds from processed flight data for use in prediction scripts.
@@ -178,7 +178,7 @@ Retrieves all planIds from processed flight data for use in prediction scripts.
 
 ---
 
-### **6. Get Statistics** 📊
+### **6. Get Statistics** 
 **GET** `/api/flights/stats`
 
 Retrieves current statistics about processed flight data.
@@ -258,7 +258,7 @@ Cleanup completed: 1250 duplicate tracking points removed
 
 ---
 
-### **6. Get All PlanIds** 🆔 **NEW**
+### **6. Get All PlanIds**  **NEW**
 **GET** `/api/flights/plan-ids`
 
 Retrieves all planIds from the flights collection for feeding into prediction scripts.

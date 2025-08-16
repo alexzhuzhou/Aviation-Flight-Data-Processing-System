@@ -27,7 +27,7 @@ The services are organized by their primary responsibilities:
 
 ## Service Responsibilities
 
-### **StreamingFlightService** 🚀
+### **StreamingFlightService** 
 **Primary Purpose**: Process real-time streaming flight data
 
 **Key Features**:
@@ -63,7 +63,7 @@ The services are organized by their primary responsibilities:
 
 **Used By**: PredictedFlightController (REST API)
 
-### **OracleDataExtractionService** 🏛️ **NEW**
+### **OracleDataExtractionService**  **NEW**
 **Primary Purpose**: Extract flight data directly from Sigma Oracle production database
 
 **Key Features**:
@@ -120,7 +120,7 @@ The services are organized by their primary responsibilities:
 
 **Used By**: PunctualityAnalysisController (REST API)
 
-### **ReplayDataService** 📁
+### **ReplayDataService** 
 **Primary Purpose**: Load and access replay data from files
 
 **Key Features**:
@@ -137,7 +137,7 @@ The services are organized by their primary responsibilities:
 
 **Used By**: Test classes, batch processing
 
-### **DataAnalysisService** 📊
+### **DataAnalysisService** 
 **Primary Purpose**: Comprehensive data analysis and insights
 
 **Key Features**:
@@ -156,7 +156,7 @@ The services are organized by their primary responsibilities:
 
 **Used By**: Analysis tools, data quality assessment
 
-### **FlightDataJoinService** 🔗
+### **FlightDataJoinService** 
 **Primary Purpose**: Join flight intentions with tracking points
 
 **Key Features**:

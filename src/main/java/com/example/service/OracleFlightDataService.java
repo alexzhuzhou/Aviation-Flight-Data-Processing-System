@@ -5,6 +5,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.measure.unit.NonSI;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -296,7 +298,18 @@ public class OracleFlightDataService {
             elementData.put("speedMeterPerSecond", element.getSpeed().getValue());
         }
         if (element.getEetMinutes() != null) {
-            elementData.put("eetMinutes", element.getEetMinutes().getValue());
+            // CRITICAL FIX: Convert EET to actual minutes using NonSI.MINUTE
+            double eetInMinutes = element.getEetMinutes().longValue(NonSI.MINUTE);
+            elementData.put("eetMinutes", eetInMinutes);
+            
+            // Debug logging for first few elements to verify conversion
+            if (elementData.containsKey("indicative")) {
+                String indicative = (String) elementData.get("indicative");
+                if (indicative != null && (indicative.contains("SBFI") || indicative.contains("FI003") || indicative.contains("SBGR"))) {
+                    logger.debug("EET conversion for {}: raw={}, converted={}min", 
+                               indicative, element.getEetMinutes().getValue(), eetInMinutes);
+                }
+            }
         }
         if (element.getElementType() != null) {
             elementData.put("elementType", element.getElementType().toString());

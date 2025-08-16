@@ -148,6 +148,23 @@ public class TrackingPoint {
     public long getTimestamp() { return timestamp; }
     public void setTimestamp(long timestamp) { this.timestamp = timestamp; }
     
+    // Additional methods for trajectory densification
+    public Double getAltitude() { 
+        return flightLevel > 0 ? (double) flightLevel * 100 : null; // Convert flight level to feet
+    }
+    
+    public void setAltitude(Double altitude) { 
+        if (altitude != null) {
+            this.flightLevel = (int) (altitude / 100); // Convert feet to flight level
+        }
+    }
+    
+    // Additional field for marking interpolated points
+    private boolean interpolated = false;
+    
+    public boolean isInterpolated() { return interpolated; }
+    public void setInterpolated(boolean interpolated) { this.interpolated = interpolated; }
+    
     @Override
     public String toString() {
         return "TrackingPoint{" +

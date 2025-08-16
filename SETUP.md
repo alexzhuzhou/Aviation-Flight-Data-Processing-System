@@ -3,7 +3,7 @@
 This guide helps you set up the Aviation Flight Data Processing System for development.
 
 ## Prerequisites
-
+- Put this project under modules/test folder!!!!
 - Java 15 or higher
 - Maven 3.8+ (tested with 3.8.3)
 - MongoDB (for streaming features) - can be run via Docker
