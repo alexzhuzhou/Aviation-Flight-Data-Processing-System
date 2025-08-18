@@ -204,81 +204,21 @@ public class TrajectoryDensificationService {
             RouteElement densifiedElement = null;
             
             try {
-                // ENHANCED DEBUG for first few attempts
-                if (i < 3) {
-                    logger.debug("Simulation attempt {}: simulationTimeSeconds={}, currentTime={}, flightPlanRange={}s-{}s", 
-                               i, simulationTimeSeconds, currentTime.getTime(), flightPlanStartSeconds, flightPlanEndSeconds);
-                    logger.debug("FlightIntention details: planId={}, segments={}, extractionRoute={}", 
-                               flightIntention.getPlanId(), 
-                               flightIntention.getExtractionRoute() != null ? flightIntention.getExtractionRoute().getSegments().size() : "null",
-                               flightIntention.getExtractionRoute() != null);
-                }
-                
                 // Clear previous results
                 simulatedTracks.clear();
                 
-                // Enhanced debugging: Check which segment this time falls into
-                String segmentInfo = "NONE";
-                for (int segIdx = 0; segIdx < segments.size(); segIdx++) {
-                    SegmentVO seg = segments.get(segIdx);
-                    if (simulationTimeSeconds >= seg.getFirst().getAetSeconds() && 
-                        simulationTimeSeconds <= seg.getSecond().getAetSeconds()) {
-                        segmentInfo = String.format("Segment[%d]: %ds-%ds", segIdx, 
-                                                  seg.getFirst().getAetSeconds(), 
-                                                  seg.getSecond().getAetSeconds());
-                        break;
-                    }
-                }
-                
                 simulator.verifyAndCreateSimulatedTrack(simulatedTracks, flightIntention, new AuxVarsVO());
-                
-                if (i < 10 || simulatedTracks.isEmpty()) { // Log first 10 attempts or all failures
-                    logger.debug("Simulation attempt {}: time={}s, segment={}, result={} tracks", 
-                               i, simulationTimeSeconds, segmentInfo, simulatedTracks.size());
-                    
-                    if (!simulatedTracks.isEmpty()) {
-                        PathVO track = simulatedTracks.get(0);
-                        logger.debug("SUCCESS - Track details: kinematic={}, flightLevel={}", 
-                                   track.getKinematic() != null, track.getFlightLevel());
-                        if (track.getKinematic() != null && track.getKinematic().getPosition() != null) {
-                            logger.debug("Position: lat={}, lon={}", 
-                                       track.getKinematic().getPosition().getLatitude(),
-                                       track.getKinematic().getPosition().getLongitude());
-                        }
-                    } else {
-                        logger.debug("FAILURE - No tracks generated for time={}s, segment={}", 
-                                   simulationTimeSeconds, segmentInfo);
-                        
-                        // Additional failure analysis
-                        if (segmentInfo.equals("NONE")) {
-                            logger.debug("FAILURE REASON: Time {}s falls outside all segment ranges", simulationTimeSeconds);
-                        }
-                    }
-                }
                 
                 if (!simulatedTracks.isEmpty()) {
                     // SUCCESS: Use Sigma's physics-based simulation
                     PathVO simulatedTrack = simulatedTracks.get(0);
                     densifiedElement = convertToRouteElement(simulatedTrack, i);
                     sigmaSuccessCount++;
-                    
-                    if (i < 3) { // Log first few successful generations
-                        logger.debug("SUCCESS: Generated point {} using Sigma simulation: lat={}, lon={}", i, 
-                                   densifiedElement.getLatitude(), densifiedElement.getLongitude());
-                    }
                 } else {
                     // FALLBACK: Use linear interpolation between waypoints
                     densifiedElement = createRouteElementByLinearInterpolation(segments, simulationTimeSeconds, i);
                     if (densifiedElement != null) {
                         linearInterpolationCount++;
-                        if (i < 3) {
-                            logger.debug("FALLBACK: Generated point {} using linear interpolation: lat={}, lon={}", 
-                                       i, densifiedElement.getLatitude(), densifiedElement.getLongitude());
-                        }
-                    } else {
-                        if (i < 3) { // Log first few failures
-                            logger.debug("FAILED: Could not generate point {} at simulationTime={}s", i, simulationTimeSeconds);
-                        }
                     }
                 }
             } catch (Exception e) {
@@ -286,16 +226,6 @@ public class TrajectoryDensificationService {
                 densifiedElement = createRouteElementByLinearInterpolation(segments, simulationTimeSeconds, i);
                 if (densifiedElement != null) {
                     linearInterpolationCount++;
-                    if (i < 3) {
-                        logger.debug("EXCEPTION FALLBACK: Generated point {} using linear interpolation after error: {}", 
-                                   i, e.getMessage());
-                    }
-                } else {
-                    logger.error("Error generating point {} at simulationTime={}s: {}", 
-                               i, simulationTimeSeconds, e.getMessage());
-                    if (i < 3) { // Only log stack trace for first few errors
-                        logger.debug("Simulation error details", e);
-                    }
                 }
             }
             
@@ -360,25 +290,6 @@ public class TrajectoryDensificationService {
         
         logger.debug("FlightIntentionVO created: planId={}, indicative={}, segments={}", 
                    flightIntention.getPlanId(), flightIntention.getIndicative(), segments.size());
-        
-        // ENHANCED VALIDATION: Check if FlightIntentionVO is properly configured
-        logger.debug("FlightIntentionVO validation: planId={}, indicative={}, aircraftType={}, ssrCode={}", 
-                   flightIntention.getPlanId(), flightIntention.getIndicative(), 
-                   flightIntention.getAircraftType(), flightIntention.getSsrCode());
-        logger.debug("FlightIntentionVO timing: flightPlanDate={}, previewDeparture={}", 
-                   flightIntention.getFlightPlanDate() != null ? flightIntention.getFlightPlanDate().getTime() : "null",
-                   flightIntention.getPreviewDeparture());
-        logger.debug("FlightIntentionVO route: extractionRoute={}, segments={}", 
-                   flightIntention.getExtractionRoute() != null,
-                   flightIntention.getExtractionRoute() != null ? flightIntention.getExtractionRoute().getSegments().size() : 0);
-        
-        // Validate critical fields
-        if (flightIntention.getExtractionRoute() == null || flightIntention.getExtractionRoute().getSegments().isEmpty()) {
-            logger.warn("FlightIntentionVO has no extraction route or segments - this will cause simulation failure");
-        }
-        if (flightIntention.getFlightPlanDate() == null) {
-            logger.warn("FlightIntentionVO has no flight plan date - this may cause simulation failure");
-        }
         
         return flightIntention;
     }
@@ -506,9 +417,8 @@ public class TrajectoryDensificationService {
             
             // Debug logging for first few segments
             if (i < 3) {
-                logger.debug("NORMALIZED Segment {}: first AET={}s ({}h:{}m), second AET={}s ({}h:{}m), coords=({},{}) to ({},{})",
-                           i, normalizedAetSeconds, normalizedAetSeconds/3600, (normalizedAetSeconds%3600)/60,
-                           normalizedNextAetSeconds, normalizedNextAetSeconds/3600, (normalizedNextAetSeconds%3600)/60,
+                logger.debug("Segment {}: AET={}s-{}s, coords=({},{}) to ({},{})",
+                           i, normalizedAetSeconds, normalizedNextAetSeconds,
                            firstElement.getCoordinate().getLatitude(), firstElement.getCoordinate().getLongitude(),
                            secondElement.getCoordinate().getLatitude(), secondElement.getCoordinate().getLongitude());
             }

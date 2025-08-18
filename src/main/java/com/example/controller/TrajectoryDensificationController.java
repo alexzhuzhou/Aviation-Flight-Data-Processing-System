@@ -92,15 +92,26 @@ public class TrajectoryDensificationController {
             int successCount = (int) results.stream().filter(TrajectoryDensificationResult::isSuccess).count();
             int errorCount = results.size() - successCount;
             
+            // Calculate Sigma success rate statistics
+            long highSigmaSuccessCount = results.stream()
+                .filter(TrajectoryDensificationResult::isSuccess)
+                .filter(r -> r.getSigmaSuccessRate() >= 90.0)
+                .count();
+            
+            double highSigmaSuccessPercentage = successCount > 0 ? 
+                (double) highSigmaSuccessCount / successCount * 100.0 : 0.0;
+            
             Map<String, Object> response = new HashMap<>();
             response.put("totalRequested", planIds.size());
             response.put("totalProcessed", results.size());
             response.put("successCount", successCount);
             response.put("errorCount", errorCount);
+            response.put("highSigmaSuccessCount", highSigmaSuccessCount);
+            response.put("highSigmaSuccessPercentage", Math.round(highSigmaSuccessPercentage * 10.0) / 10.0);
             response.put("results", results);
             response.put("processingTimeMs", totalProcessingTime);
-            response.put("message", String.format("Batch densification completed: %d successful, %d errors out of %d requested", 
-                                                successCount, errorCount, planIds.size()));
+            response.put("message", String.format("Batch densification completed: %d successful, %d errors out of %d requested. %d flights (%.1f%%) achieved ≥90%% Sigma success rate", 
+                                                successCount, errorCount, planIds.size(), highSigmaSuccessCount, highSigmaSuccessPercentage));
             
             logger.info("Batch trajectory densification completed: {} successful, {} errors, {}ms total", 
                        successCount, errorCount, totalProcessingTime);
@@ -160,11 +171,22 @@ public class TrajectoryDensificationController {
             long errorCount = results.size() - successCount;
             long totalProcessingTime = System.currentTimeMillis() - startTime;
             
+            // Calculate Sigma success rate statistics
+            long highSigmaSuccessCount = results.stream()
+                .filter(TrajectoryDensificationResult::isSuccess)
+                .filter(r -> r.getSigmaSuccessRate() >= 90.0)
+                .count();
+            
+            double highSigmaSuccessPercentage = successCount > 0 ? 
+                (double) highSigmaSuccessCount / successCount * 100.0 : 0.0;
+            
             // Step 4: Build comprehensive response
             Map<String, Object> response = new HashMap<>();
             response.put("totalRequested", allPlanIds.size());
             response.put("totalProcessed", successCount);
             response.put("totalErrors", errorCount);
+            response.put("highSigmaSuccessCount", highSigmaSuccessCount);
+            response.put("highSigmaSuccessPercentage", Math.round(highSigmaSuccessPercentage * 10.0) / 10.0);
             response.put("processingTimeMs", totalProcessingTime);
             response.put("results", results);
             
@@ -176,11 +198,12 @@ public class TrajectoryDensificationController {
                 .filter(TrajectoryDensificationResult::isSuccess)
                 .mapToLong(TrajectoryDensificationResult::getFinalRouteElementCount)
                 .sum());
+            summary.put("highSigmaSuccessFlights", highSigmaSuccessCount + " out of " + successCount + " successful flights");
             response.put("summary", summary);
             
             response.put("message", String.format(
-                "Auto-sync densification completed: %d successful, %d errors out of %d flights in %dms", 
-                successCount, errorCount, allPlanIds.size(), totalProcessingTime));
+                "Auto-sync densification completed: %d successful, %d errors out of %d flights in %dms. %d flights (%.1f%%) achieved ≥90%% Sigma success rate", 
+                successCount, errorCount, allPlanIds.size(), totalProcessingTime, highSigmaSuccessCount, highSigmaSuccessPercentage));
             
             logger.info("Auto-sync trajectory densification completed: {} successful, {} errors, {}ms total", 
                        successCount, errorCount, totalProcessingTime);

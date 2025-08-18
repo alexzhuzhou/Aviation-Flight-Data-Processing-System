@@ -26,11 +26,10 @@ import java.util.LinkedHashMap;
  * Disambiguation Strategy:
  * 1. Match tracking point timestamp to flight time window (flightPlanDate to currentDateTimeOfArrival)
  * 2. Find closest time window with 30-minute tolerance
- * 3. Fallback to most recently updated flight
- * 4. Fallback to flight with fewest tracking points
+ * 3. If no temporal match found, discard tracking points to prevent data contamination
  * 
  * This approach ensures tracking points are assigned to the correct flight instance
- * even when multiple flights share the same call sign (indicative).
+ * only when there is clear temporal evidence, preventing cross-flight data mixing.
  */
 @Service
 public class StreamingFlightService {
@@ -201,35 +200,10 @@ public class StreamingFlightService {
             }
         }
         
-        // Strategy 3: Select most recently updated flight (closest to current packet time)
-        if (packetTimestamp != null) {
-            JoinedFlightData mostRecent = candidateFlights.stream()
-                .filter(f -> f.getLastPacketTimestamp() != null)
-                .max((f1, f2) -> f1.getLastPacketTimestamp().compareTo(f2.getLastPacketTimestamp()))
-                .orElse(null);
-            
-            if (mostRecent != null) {
-                logger.debug("Selected flight {} - most recently updated ({})", 
-                    mostRecent.getId(), mostRecent.getLastPacketTimestamp());
-                return mostRecent;
-            }
-        }
-        
-        // Strategy 4: Select flight with fewest tracking points (might be incomplete)
-        JoinedFlightData leastPopulated = candidateFlights.stream()
-            .min((f1, f2) -> Integer.compare(f1.getTotalTrackingPoints(), f2.getTotalTrackingPoints()))
-            .orElse(null);
-        
-        if (leastPopulated != null) {
-            logger.debug("Selected flight {} - fewest tracking points ({})", 
-                leastPopulated.getId(), leastPopulated.getTotalTrackingPoints());
-            return leastPopulated;
-        }
-        
-        // Fallback: return first flight
-        JoinedFlightData fallback = candidateFlights.get(0);
-        logger.warn("Using fallback selection for indicative {} - selected flight {}", indicative, fallback.getId());
-        return fallback;
+        // No suitable flight found - cannot disambiguate based on timing
+        logger.warn("Could not disambiguate between {} flights with indicative {} - no flight matches timestamp criteria. Tracking points will be discarded to prevent data contamination.", 
+                   candidateFlights.size(), indicative);
+        return null;
     }
     
     /**
