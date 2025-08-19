@@ -6,7 +6,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TimeZone;
 import java.time.LocalDateTime;
+import java.time.Instant;
+import java.time.ZoneId;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -43,11 +46,55 @@ public class TrajectoryDensificationService {
     
     private static final Logger logger = LoggerFactory.getLogger(TrajectoryDensificationService.class);
     
+    // FIXED: Always use UTC timezone for aviation calculations
+    private static final TimeZone UTC_TIMEZONE = TimeZone.getTimeZone("UTC");
+    private static final ZoneId UTC_ZONE_ID = ZoneId.of("UTC");
+    
     @Autowired
     private FlightRepository flightRepository;
     
     @Autowired
     private PredictedFlightRepository predictedFlightRepository;
+    
+    /**
+     * FIXED: Creates a Calendar instance in UTC timezone.
+     */
+    private Calendar createUTCCalendar() {
+        return Calendar.getInstance(UTC_TIMEZONE);
+    }
+    
+    /**
+     * FIXED: Creates a Calendar instance in UTC timezone with specified time.
+     */
+    private Calendar createUTCCalendar(long timeInMillis) {
+        Calendar cal = createUTCCalendar();
+        cal.setTimeInMillis(timeInMillis);
+        return cal;
+    }
+    
+    /**
+     * Creates a deep copy of a RouteElement to preserve AERODROME elements.
+     */
+    private RouteElement cloneRouteElement(RouteElement original) {
+        RouteElement clone = new RouteElement();
+        
+        // Copy all fields from original
+        clone.setLatitude(original.getLatitude());
+        clone.setLongitude(original.getLongitude());
+        clone.setSpeedMeterPerSecond(original.getSpeedMeterPerSecond());
+        clone.setEetMinutes(original.getEetMinutes());
+        clone.setId(original.getId());
+        clone.setIndicative(original.getIndicative());
+        clone.setLevelMeters(original.getLevelMeters());
+        clone.setElementType(original.getElementType());
+        clone.setCoordinateText(original.getCoordinateText());
+        clone.setSequenceNumber(original.getSequenceNumber());
+        clone.setAltitude(original.getAltitude());
+        clone.setSpeed(original.getSpeed());
+        clone.setInterpolated(original.isInterpolated());
+        
+        return clone;
+    }
     
     /**
      * Densifies a predicted flight trajectory to match the tracking point density of its corresponding real flight.
@@ -190,42 +237,71 @@ public class TrajectoryDensificationService {
         int sigmaSuccessCount = 0;
         int linearInterpolationCount = 0;
         
+        // FIXED: Check if first and last elements are AERODROME types that should be preserved
+        List<RouteElement> originalElements = predictedFlight.getRouteElements();
+        boolean preserveFirstElement = !originalElements.isEmpty() && 
+            "AERODROME".equals(originalElements.get(0).getElementType());
+        boolean preserveLastElement = originalElements.size() > 1 && 
+            "AERODROME".equals(originalElements.get(originalElements.size() - 1).getElementType());
+        
+        logger.debug("AERODROME preservation: first={}, last={}", preserveFirstElement, preserveLastElement);
+        
         for (int i = 0; i < targetPointCount; i++) {
-            // CRITICAL FIX: Calculate simulation time based on flight plan progression
-            int simulationTimeSeconds = flightPlanStartSeconds + (int) (i * timeIntervalSeconds);
-            
-            // Convert to Calendar time - FIXED: Add AET offset to actual flight start time
-            Calendar currentTime = (Calendar) startTime.clone();
-            currentTime.add(Calendar.SECOND, simulationTimeSeconds);
-            
-            simulator.setCurrentTime(currentTime);
-            
-            List<PathVO> simulatedTracks = new ArrayList<>();
             RouteElement densifiedElement = null;
             
-            try {
-                // Clear previous results
-                simulatedTracks.clear();
+            // FIXED: Preserve AERODROME elements at start and end
+            if (i == 0 && preserveFirstElement) {
+                // Keep original first element if it's an AERODROME
+                densifiedElement = cloneRouteElement(originalElements.get(0));
+                densifiedElement.setSequenceNumber(i);
+                densifiedElement.setInterpolated(false); // Mark as original
+                logger.debug("Preserved first AERODROME element: {}", densifiedElement.getIndicative());
+            } else if (i == targetPointCount - 1 && preserveLastElement) {
+                // Keep original last element if it's an AERODROME
+                densifiedElement = cloneRouteElement(originalElements.get(originalElements.size() - 1));
+                densifiedElement.setSequenceNumber(i);
+                densifiedElement.setInterpolated(false); // Mark as original
+                logger.debug("Preserved last AERODROME element: {}", densifiedElement.getIndicative());
+            } else {
+                // Generate intermediate points using Sigma simulation
+                // FIXED: Calculate simulation time based on flight plan progression
+                int simulationTimeSeconds = flightPlanStartSeconds + (int) (i * timeIntervalSeconds);
                 
-                simulator.verifyAndCreateSimulatedTrack(simulatedTracks, flightIntention, new AuxVarsVO());
+                // FIXED: Convert to Calendar time in UTC - Add AET offset to actual flight start time
+                Calendar currentTime = createUTCCalendar(startTime.getTimeInMillis()); // Use UTC
+                currentTime.add(Calendar.SECOND, simulationTimeSeconds);
                 
-                if (!simulatedTracks.isEmpty()) {
-                    // SUCCESS: Use Sigma's physics-based simulation
-                    PathVO simulatedTrack = simulatedTracks.get(0);
-                    densifiedElement = convertToRouteElement(simulatedTrack, i);
-                    sigmaSuccessCount++;
-                } else {
-                    // FALLBACK: Use linear interpolation between waypoints
+                simulator.setCurrentTime(currentTime);
+                
+                List<PathVO> simulatedTracks = new ArrayList<>();
+                
+                try {
+                    // Clear previous results
+                    simulatedTracks.clear();
+                    
+                    simulator.verifyAndCreateSimulatedTrack(simulatedTracks, flightIntention, new AuxVarsVO());
+                    
+                    if (!simulatedTracks.isEmpty()) {
+                        // SUCCESS: Use Sigma's physics-based simulation
+                        PathVO simulatedTrack = simulatedTracks.get(0);
+                        densifiedElement = convertToRouteElement(simulatedTrack, i);
+                        densifiedElement.setInterpolated(true); // Mark as generated
+                        sigmaSuccessCount++;
+                    } else {
+                        // FALLBACK: Use linear interpolation between waypoints
+                        densifiedElement = createRouteElementByLinearInterpolation(segments, simulationTimeSeconds, i);
+                        if (densifiedElement != null) {
+                            densifiedElement.setInterpolated(true); // Mark as generated
+                            linearInterpolationCount++;
+                        }
+                    }
+                } catch (Exception e) {
+                    // FALLBACK: Use linear interpolation on exception
                     densifiedElement = createRouteElementByLinearInterpolation(segments, simulationTimeSeconds, i);
                     if (densifiedElement != null) {
+                        densifiedElement.setInterpolated(true); // Mark as generated
                         linearInterpolationCount++;
                     }
-                }
-            } catch (Exception e) {
-                // FALLBACK: Use linear interpolation on exception
-                densifiedElement = createRouteElementByLinearInterpolation(segments, simulationTimeSeconds, i);
-                if (densifiedElement != null) {
-                    linearInterpolationCount++;
                 }
             }
             
@@ -268,22 +344,23 @@ public class TrajectoryDensificationService {
         extractionRoute.getSegments().addAll(segments);
         flightIntention.setExtractionRoute(extractionRoute);
         
-        // Set timing information
+        // Set timing information - FIXED: Use UTC timezone consistently
         Calendar startTime = getFlightStartTime(realFlight);
         if (startTime != null) {
+            // FIXED: Convert to UTC LocalDateTime properly
             LocalDateTime previewDeparture = LocalDateTime.ofInstant(
                 startTime.toInstant(), 
-                java.time.ZoneId.of("UTC")
+                UTC_ZONE_ID  // Use UTC consistently
             );
             flightIntention.setPreviewDeparture(previewDeparture);
-            flightIntention.setFlightPlanDate(startTime);
+            flightIntention.setFlightPlanDate(startTime); // startTime is already in UTC
         } else {
-            // Fallback to current time
-            Calendar currentTime = Calendar.getInstance();
+            // FIXED: Fallback to current time in UTC
+            Calendar currentTime = createUTCCalendar(); // Use UTC instead of system timezone
             flightIntention.setFlightPlanDate(currentTime);
             LocalDateTime previewDeparture = LocalDateTime.ofInstant(
                 currentTime.toInstant(), 
-                java.time.ZoneId.of("UTC")
+                UTC_ZONE_ID  // Use UTC consistently
             );
             flightIntention.setPreviewDeparture(previewDeparture);
         }
@@ -432,7 +509,7 @@ public class TrajectoryDensificationService {
     
     /**
      * Creates and configures a SimTrackSimulator instance.
-     * Fixed to use proper initialization with actual flight date.
+     * FIXED: Use UTC timezone consistently for all time operations.
      */
     private SimTrackSimulator createSimulator(Calendar flightStartTime) {
         SimTrackSimulator simulator = new SimTrackSimulator();
@@ -441,9 +518,10 @@ public class TrajectoryDensificationService {
         FlightIntentionManipulatorAdapter manipulator = new FlightIntentionManipulatorAdapter();
         simulator.setFlightPlanManipulator(manipulator);
         
-        // Set start date session to match the actual flight date (required for time calculations)
-        Calendar startDateSession = (Calendar) flightStartTime.clone();
-        // Reset to start of day for session
+        // FIXED: Set start date session to match the actual flight date in UTC
+        Calendar startDateSession = createUTCCalendar(flightStartTime.getTimeInMillis());
+        
+        // Reset to start of day in UTC (not system timezone)
         startDateSession.set(Calendar.HOUR_OF_DAY, 0);
         startDateSession.set(Calendar.MINUTE, 0);
         startDateSession.set(Calendar.SECOND, 0);
@@ -453,7 +531,7 @@ public class TrajectoryDensificationService {
         // Initialize segment auxiliaries map (for performance optimization)
         simulator.setSegmentAuxsByFlightIntentions(new HashMap<>());
         
-        logger.debug("SimTrackSimulator created with startDateSession: {} (flight starts at: {})", 
+        logger.debug("SimTrackSimulator created with UTC startDateSession: {} (flight starts at: {})", 
                    startDateSession.getTime(), flightStartTime.getTime());
         
         return simulator;
@@ -469,7 +547,15 @@ public class TrajectoryDensificationService {
             CoordinateVO position = simulatedTrack.getKinematic().getPosition();
             element.setLatitude(position.getLatitude());
             element.setLongitude(position.getLongitude());
+            
+            // Set altitude in hundreds of feet (original flight level value)
             element.setAltitude(simulatedTrack.getFlightLevel() * 100.0); // Convert flight level to feet
+            
+            // Convert altitude to meters using SI.METER for levelMeters field
+            double altitudeFeet = simulatedTrack.getFlightLevel() * 100.0;
+            // Note: Need to create a Measure object to use SI.METER conversion
+            // For now, using direct conversion factor until SI import is added
+            element.setLevelMeters(altitudeFeet * 0.3048); // Convert feet to meters
             
             if (simulatedTrack.getKinematic().getSpeed() > 0) {
                 element.setSpeed(simulatedTrack.getKinematic().getSpeed());
@@ -522,13 +608,19 @@ public class TrajectoryDensificationService {
                            ratio * (second.getCoordinate().getLatitude() - first.getCoordinate().getLatitude());
                 double lon = first.getCoordinate().getLongitude() + 
                            ratio * (second.getCoordinate().getLongitude() - first.getCoordinate().getLongitude());
-                double alt = first.getLevel() + ratio * (second.getLevel() - first.getLevel());
+                double altFeet = first.getLevel() + ratio * (second.getLevel() - first.getLevel());
                 
                 // Create interpolated route element
                 RouteElement element = new RouteElement();
                 element.setLatitude(lat);
                 element.setLongitude(lon);
-                element.setLevelMeters(alt * 0.3048); // Convert feet to meters
+                
+                // Set altitude in feet (original value)
+                element.setAltitude(altFeet);
+                
+                // Convert altitude to meters for levelMeters field
+                element.setLevelMeters(altFeet * 0.3048); // Convert feet to meters
+                
                 element.setEetMinutes(simulationTimeSeconds / 60.0);
                 element.setElementType("INTERPOLATED_LINEAR");
                 element.setIndicative("INTERP_" + pointIndex);
@@ -540,10 +632,13 @@ public class TrajectoryDensificationService {
         
         return null; // Time not found in any segment
     }
+    /**
+     * FIXED: Gets flight start time in UTC timezone.
+     */
     private Calendar getFlightStartTime(JoinedFlightData realFlight) {
-        Calendar startTime = Calendar.getInstance();
+        Calendar startTime = createUTCCalendar(); // Use UTC instead of system timezone
         
-        if (!realFlight.getTrackingPoints().isEmpty()) {
+        if (realFlight.getTrackingPoints() != null && !realFlight.getTrackingPoints().isEmpty()) {
             TrackingPoint firstPoint = realFlight.getTrackingPoints().get(0);
             startTime.setTimeInMillis(firstPoint.getTimestamp());
         }

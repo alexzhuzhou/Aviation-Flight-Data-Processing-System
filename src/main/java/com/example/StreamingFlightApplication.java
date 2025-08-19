@@ -70,11 +70,17 @@ public class StreamingFlightApplication {
         System.out.println("   GET  /api/punctuality-analysis/run            - Run full punctuality analysis");
         System.out.println("   GET  /api/punctuality-analysis/stats          - Get analysis statistics");
         System.out.println("");
+        System.out.println("    Trajectory Accuracy Analysis (MSE/RMSE):");
+        System.out.println("   GET  /api/trajectory-accuracy/run             - Run trajectory accuracy analysis");
+        System.out.println("   GET  /api/trajectory-accuracy/stats           - Get trajectory accuracy statistics");
+        System.out.println("   GET  /api/trajectory-accuracy/info            - Get analysis methodology info");
+        System.out.println("");
         System.out.println("    Statistics & Health:");
         System.out.println("   GET  /api/flights/stats                       - Get flight statistics");
         System.out.println("   GET  /api/flights/health                      - Health check");
         System.out.println("   GET  /api/predicted-flights/health            - Predicted flights health");
         System.out.println("   GET  /api/punctuality-analysis/health         - Analysis health check");
+        System.out.println("   GET  /api/trajectory-accuracy/health          - Trajectory accuracy health");
         System.out.println("");
         System.out.println("    Legacy & Utilities:");
         System.out.println("   POST /api/flights/process-packet-legacy       - Legacy JSON packet processing");

@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
+import java.util.stream.Collectors;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -415,15 +416,62 @@ public class PunctualityAnalysisService {
                     LocalDateTime.now().toString(), "No qualifying flights found for analysis");
             }
             
-            // TODO: Step 2 - Match with real flights
-            // TODO: Step 3 - Calculate time differences
-            // TODO: Step 4 - Apply tolerance windows
-            // TODO: Step 5 - Generate KPI results
+            // Step 2: Match with real flights
+            logger.info("Step 2: Matching predicted flights with real flights");
+            List<Map<String, Object>> matchedFlights = matchPredictedWithRealFlights();
             
-            logger.info("Analysis framework ready - {} qualifying flights found", qualifyingFlights.size());
+            // Filter for flights that have both predicted and real data
+            List<Map<String, Object>> analyzableFlights = matchedFlights.stream()
+                .filter(flight -> (Boolean) flight.get("hasRealFlight"))
+                .collect(Collectors.toList());
             
-            return new PunctualityAnalysisResult(0, 0, new ArrayList<>(), 
-                LocalDateTime.now().toString(), "Analysis framework ready - " + qualifyingFlights.size() + " qualifying flights found");
+            if (analyzableFlights.isEmpty()) {
+                logger.warn("No flights could be matched between predicted and real data");
+                return new PunctualityAnalysisResult(qualifyingFlights.size(), 0, new ArrayList<>(), 
+                    LocalDateTime.now().toString(), 
+                    String.format("Found %d qualifying flights but none could be matched with real flight data", 
+                                qualifyingFlights.size()));
+            }
+            
+            logger.info("Step 2 completed: {} flights can be analyzed (have both predicted and real data)", 
+                       analyzableFlights.size());
+            
+            // Step 3: Calculate punctuality KPIs using existing method
+            logger.info("Step 3: Calculating punctuality KPIs");
+            Map<String, Object> kpiResults = calculatePunctualityKPIs();
+            
+            // Extract tolerance windows from KPI results
+            List<PunctualityAnalysisResult.DelayToleranceWindow> toleranceWindows = new ArrayList<>();
+            
+            if (kpiResults.containsKey("toleranceWindows")) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> windows = (List<Map<String, Object>>) kpiResults.get("toleranceWindows");
+                
+                for (Map<String, Object> window : windows) {
+                    toleranceWindows.add(new PunctualityAnalysisResult.DelayToleranceWindow(
+                        (String) window.get("windowDescription"),
+                        (Integer) window.get("toleranceMinutes"),
+                        (Integer) window.get("flightsWithinTolerance"),
+                        (Double) window.get("percentageWithinTolerance"),
+                        (String) window.get("kpiOutput")
+                    ));
+                }
+            }
+            
+            // Get total analyzed flights from KPI results
+            int totalAnalyzedFromKPI = kpiResults.containsKey("totalAnalyzed") ? 
+                (Integer) kpiResults.get("totalAnalyzed") : analyzableFlights.size();
+            
+            logger.info("Punctuality analysis completed successfully: {} flights analyzed", totalAnalyzedFromKPI);
+            
+            return new PunctualityAnalysisResult(
+                qualifyingFlights.size(), 
+                totalAnalyzedFromKPI, 
+                toleranceWindows, 
+                LocalDateTime.now().toString(), 
+                String.format("Analysis completed: %d predicted flights, %d matched with real flights, %d analyzed successfully", 
+                            qualifyingFlights.size(), matchedFlights.size(), totalAnalyzedFromKPI)
+            );
                 
         } catch (Exception e) {
             logger.error("Error performing punctuality analysis", e);

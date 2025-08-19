@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 
 import javax.measure.unit.NonSI;
+import javax.measure.unit.SI;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -292,7 +293,9 @@ public class OracleFlightDataService {
         
         // Add flight data directly to element
         if (element.getLevel() != null) {
-            elementData.put("levelMeters", element.getLevel().getValue());
+            // Convert level to meters before storing in database
+            double levelInMeters = element.getLevel().doubleValue(SI.METER);
+            elementData.put("levelMeters", levelInMeters);
         }
         if (element.getSpeed() != null) {
             elementData.put("speedMeterPerSecond", element.getSpeed().getValue());
