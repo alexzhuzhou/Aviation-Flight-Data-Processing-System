@@ -38,8 +38,8 @@ curl -X POST http://localhost:8080/api/predicted-flights/batch \
 # Match flights
 curl http://localhost:8080/api/punctuality-analysis/match-flights
 
-# Run full analysis (ICAO KPI14)
-curl http://localhost:8080/api/punctuality-analysis/run
+# Run KPI analysis (ICAO KPI14)
+curl http://localhost:8080/api/punctuality-analysis/punctuality-kpis
 ```
 
 ### 📊 Statistics
@@ -71,8 +71,8 @@ curl -X POST http://localhost:8080/api/predicted-flights/batch \
   -H "Content-Type: application/json" \
   -d '{"planIds": [17879345, 17879346, 17879347]}'
 
-# 5. Run analysis
-curl http://localhost:8080/api/punctuality-analysis/run
+# 5. Run KPI analysis
+curl http://localhost:8080/api/punctuality-analysis/punctuality-kpis
 ```
 
 ## 📝 Key Features

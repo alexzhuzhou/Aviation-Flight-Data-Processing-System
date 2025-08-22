@@ -15,10 +15,12 @@ import java.util.stream.Collectors;
  * Service for analyzing trajectory accuracy by comparing predicted flight routes
  * with actual flight tracking points using MSE and RMSE metrics.
  * 
- * Reuses flight qualification logic from PunctualityAnalysisService for:
- * - SBSP ↔ SBRJ route filtering
- * - planId matching between predicted and real flights
- * - 2 NM threshold geographic validation
+ * Reuses complete filtering pipeline from PunctualityAnalysisService for consistency:
+ * - SBSP ↔ SBRJ route filtering (findQualifyingFlights)
+ * - planId matching between predicted and real flights (matchPredictedWithRealFlights)
+ * - 2 NM threshold + flight level ≤ 4 geographic validation (filterFlightsByGeographicValidation)
+ * 
+ * This ensures both analyses use exactly the same qualified flight dataset.
  */
 @Service
 public class TrajectoryAccuracyAnalysisService {
@@ -36,9 +38,14 @@ public class TrajectoryAccuracyAnalysisService {
     
     // Constants for unit conversions
     private static final double DEGREES_TO_RADIANS = Math.PI / 180.0;
-    // FIXED: Flight level is in hundreds of feet (e.g., FL16 = 1,600 feet = 487.68 meters)
-    private static final double FLIGHT_LEVEL_TO_METERS = 30.48; // 100 feet = 30.48 meters
+    // FIXED: Flight level conversion - standard aviation flight levels (FL350 = 35,000 feet)
+    private static final double FLIGHT_LEVEL_TO_FEET = 100.0; // FL350 = 35,000 feet
     private static final double FEET_TO_METERS = 0.3048; // 1 foot = 0.3048 meters
+    private static final double FLIGHT_LEVEL_TO_METERS = FLIGHT_LEVEL_TO_FEET * FEET_TO_METERS; // FL to meters directly
+    
+    // NEW: Constants for converting radians to meters (approximate for small angles)
+    private static final double EARTH_RADIUS_METERS = 6371000.0; // Earth's radius in meters
+    private static final double RADIANS_TO_METERS = EARTH_RADIUS_METERS; // For small angles: distance ≈ radius × angle_in_radians
     
     // Geographic constants (reused from PunctualityAnalysisService)
     private static final double SBSP_LAT = -23.6266; // São Paulo (Congonhas)
@@ -58,20 +65,16 @@ public class TrajectoryAccuracyAnalysisService {
         TrajectoryAccuracyResult result = new TrajectoryAccuracyResult();
         
         try {
-            // FIXED: Reuse punctuality analysis methods for consistent flight qualification
-            logger.info("Step 1: Finding qualifying flights using punctuality analysis methods");
+            // FIXED: Reuse complete punctuality analysis filtering pipeline for consistency
+            logger.info("Step 1: Using punctuality analysis filtering pipeline for consistent flight qualification");
             
-            // Get matched flights from punctuality analysis (this includes the qualification logic)
-            List<Map<String, Object>> matchedFlights = punctualityAnalysisService.matchPredictedWithRealFlights();
+            // Use the complete filtering pipeline from punctuality analysis:
+            // 1. findQualifyingFlights() - SBSP ↔ SBRJ route filtering
+            // 2. matchPredictedWithRealFlights() - Match with real flights
+            // 3. filterFlightsByGeographicValidation() - Geographic validation (2 NM + flight level ≤ 4)
+            List<Map<String, Object>> qualifiedFlights = punctualityAnalysisService.filterFlightsByGeographicValidation();
             
-            logger.info("Found {} matched flights from punctuality analysis", matchedFlights.size());
-            
-            // Filter for flights that have both predicted and real data
-            List<Map<String, Object>> qualifiedFlights = matchedFlights.stream()
-                .filter(flight -> (Boolean) flight.get("hasRealFlight"))
-                .collect(Collectors.toList());
-            
-            logger.info("Qualified flights: {} (have both predicted and real data)", qualifiedFlights.size());
+            logger.info("Qualified flights after complete punctuality filtering: {}", qualifiedFlights.size());
             
             if (qualifiedFlights.isEmpty()) {
                 result.setTotalQualifiedFlights(0);
@@ -106,9 +109,10 @@ public class TrajectoryAccuracyAnalysisService {
                         calculateFlightAccuracy(predictedFlight, realFlight);
                     flightResults.add(flightMetrics);
                     
-                    logger.debug("Analyzed flight planId={}, points={}, horizontalRMSE={:.4f}, verticalRMSE={:.4f}",
+                    logger.debug("Analyzed flight planId={}, points={}, horizontalRMSE={:.6f} rad ({:.2f} m), verticalRMSE={:.2f} m",
                                predictedFlight.getInstanceId(), predictedPointCount, 
-                               flightMetrics.getHorizontalRMSE(), flightMetrics.getVerticalRMSE());
+                               flightMetrics.getHorizontalRMSE(), flightMetrics.getHorizontalRMSEMeters(), 
+                               flightMetrics.getVerticalRMSE());
                 } else {
                     totalSkipped++;
                     logger.debug("Skipped flight planId={} - point count mismatch: predicted={}, real={}",
@@ -215,26 +219,32 @@ public class TrajectoryAccuracyAnalysisService {
             
             // Calculate vertical error using consistent meter units
             double predictedAltitudeMeters = getPredictedAltitudeInMeters(predictedPoint); // levelMeters field (already in meters)
-            // Convert real flight level to meters (flightLevel is in hundreds of feet, e.g., FL16 = 1,600 feet)
-            double realAltitudeMeters = realPoint.getFlightLevel() * FLIGHT_LEVEL_TO_METERS;
+            // FIXED: Convert real flight level to meters properly
+            // Real flight level appears to be in standard aviation flight levels (hundreds of feet)
+            double realAltitudeMeters = realPoint.getFlightLevel() * 100.0 * 0.3048; // FL to feet to meters
             
             // Debug logging for first few points to verify altitude handling
             if (i < 3) {
-                logger.debug("Point {}: elementType={}, levelMeters={} m (predicted), realFL={}, real={} m", 
-                           i, predictedPoint.getElementType(), 
-                           predictedPoint.getLevelMeters(),
-                           realPoint.getFlightLevel(), realAltitudeMeters);
+                logger.debug("Point {}: predicted={} m, realFL={} (={} m), elementType={}", 
+                           i, predictedAltitudeMeters, realPoint.getFlightLevel(), 
+                           realAltitudeMeters, predictedPoint.getElementType());
             }
             
             double verticalError = realAltitudeMeters - predictedAltitudeMeters;
             double verticalErrorSquared = verticalError * verticalError;
+            
+            // ADDED: Log significant altitude differences for investigation
+            if (Math.abs(verticalError) > 5000) { // More than 5km difference
+                logger.warn("Large altitude difference at point {}: predicted={} m, real={} m, diff={} m", 
+                           i, predictedAltitudeMeters, realAltitudeMeters, verticalError);
+            }
             
             verticalMSE += verticalErrorSquared;
             totalVerticalError += Math.abs(verticalError);
             maxVerticalError = Math.max(maxVerticalError, Math.abs(verticalError));
         }
         
-        // Calculate final metrics
+        // Calculate final metrics in radians (original)
         horizontalMSE /= pointCount;
         verticalMSE /= pointCount;
         double horizontalRMSE = Math.sqrt(horizontalMSE);
@@ -242,23 +252,38 @@ public class TrajectoryAccuracyAnalysisService {
         double averageHorizontalError = totalHorizontalError / pointCount;
         double averageVerticalError = totalVerticalError / pointCount;
         
-        // Create and populate result
+        // NEW: Convert horizontal metrics from radians to meters for more intuitive results
+        double horizontalMSEMeters = horizontalMSE * RADIANS_TO_METERS * RADIANS_TO_METERS; // radians² to meters²
+        double horizontalRMSEMeters = horizontalRMSE * RADIANS_TO_METERS; // radians to meters
+        double averageHorizontalErrorMeters = averageHorizontalError * RADIANS_TO_METERS; // radians to meters
+        double maxHorizontalErrorMeters = maxHorizontalError * RADIANS_TO_METERS; // radians to meters
+        
+        // Create and populate result with both radians and meters
         TrajectoryAccuracyResult.FlightAccuracyMetrics metrics = 
             new TrajectoryAccuracyResult.FlightAccuracyMetrics(
                 predictedFlight.getInstanceId(),
                 predictedFlight.getIndicative(),
                 realFlight.getIndicative(),
                 pointCount,
-                horizontalMSE,
-                horizontalRMSE,
-                verticalMSE,
-                verticalRMSE
+                horizontalMSE,    // radians²
+                horizontalRMSE,   // radians
+                verticalMSE,      // meters²
+                verticalRMSE      // meters
             );
         
-        metrics.setMaxHorizontalError(maxHorizontalError);
-        metrics.setMaxVerticalError(maxVerticalError);
-        metrics.setAverageHorizontalError(averageHorizontalError);
-        metrics.setAverageVerticalError(averageVerticalError);
+        // Set additional horizontal metrics (radians)
+        metrics.setMaxHorizontalError(maxHorizontalError);           // radians
+        metrics.setAverageHorizontalError(averageHorizontalError);   // radians
+        
+        // Set horizontal metrics in meters
+        metrics.setHorizontalMSEMeters(horizontalMSEMeters);         // meters²
+        metrics.setHorizontalRMSEMeters(horizontalRMSEMeters);       // meters
+        metrics.setMaxHorizontalErrorMeters(maxHorizontalErrorMeters); // meters
+        metrics.setAverageHorizontalErrorMeters(averageHorizontalErrorMeters); // meters
+        
+        // Set vertical metrics (already in meters)
+        metrics.setMaxVerticalError(maxVerticalError);               // meters
+        metrics.setAverageVerticalError(averageVerticalError);       // meters
         
         return metrics;
     }
@@ -276,7 +301,7 @@ public class TrajectoryAccuracyAnalysisService {
     }
     
     /**
-     * Calculate aggregate metrics across all analyzed flights
+     * Calculate aggregate metrics across all analyzed flights with both radians and meters
      */
     private TrajectoryAccuracyResult.AggregateAccuracyMetrics calculateAggregateMetrics(
             List<TrajectoryAccuracyResult.FlightAccuracyMetrics> flightResults) {
@@ -305,26 +330,42 @@ public class TrajectoryAccuracyAnalysisService {
             maxVerticalRMSE = Math.max(maxVerticalRMSE, flight.getVerticalRMSE());
         }
         
+        // Calculate aggregate metrics in radians (original)
         double aggregateHorizontalMSE = totalHorizontalMSE / totalPoints;
         double aggregateVerticalMSE = totalVerticalMSE / totalPoints;
         double aggregateHorizontalRMSE = Math.sqrt(aggregateHorizontalMSE);
         double aggregateVerticalRMSE = Math.sqrt(aggregateVerticalMSE);
         double averagePointsPerFlight = (double) totalPoints / flightResults.size();
         
+        // NEW: Convert horizontal aggregate metrics to meters
+        double aggregateHorizontalMSEMeters = aggregateHorizontalMSE * RADIANS_TO_METERS * RADIANS_TO_METERS;
+        double aggregateHorizontalRMSEMeters = aggregateHorizontalRMSE * RADIANS_TO_METERS;
+        double minHorizontalRMSEMeters = minHorizontalRMSE * RADIANS_TO_METERS;
+        double maxHorizontalRMSEMeters = maxHorizontalRMSE * RADIANS_TO_METERS;
+        
         TrajectoryAccuracyResult.AggregateAccuracyMetrics aggregate = 
             new TrajectoryAccuracyResult.AggregateAccuracyMetrics(
-                aggregateHorizontalMSE,
-                aggregateHorizontalRMSE,
-                aggregateVerticalMSE,
-                aggregateVerticalRMSE,
+                aggregateHorizontalMSE,   // radians²
+                aggregateHorizontalRMSE,  // radians
+                aggregateVerticalMSE,     // meters²
+                aggregateVerticalRMSE,    // meters
                 averagePointsPerFlight,
                 totalPoints
             );
         
-        aggregate.setMinHorizontalRMSE(minHorizontalRMSE);
-        aggregate.setMaxHorizontalRMSE(maxHorizontalRMSE);
-        aggregate.setMinVerticalRMSE(minVerticalRMSE);
-        aggregate.setMaxVerticalRMSE(maxVerticalRMSE);
+        // Set horizontal statistics (radians)
+        aggregate.setMinHorizontalRMSE(minHorizontalRMSE);   // radians
+        aggregate.setMaxHorizontalRMSE(maxHorizontalRMSE);   // radians
+        
+        // Set horizontal metrics and statistics (meters)
+        aggregate.setHorizontalMSEMeters(aggregateHorizontalMSEMeters);     // meters²
+        aggregate.setHorizontalRMSEMeters(aggregateHorizontalRMSEMeters);   // meters
+        aggregate.setMinHorizontalRMSEMeters(minHorizontalRMSEMeters);      // meters
+        aggregate.setMaxHorizontalRMSEMeters(maxHorizontalRMSEMeters);      // meters
+        
+        // Set vertical statistics (already in meters)
+        aggregate.setMinVerticalRMSE(minVerticalRMSE);       // meters
+        aggregate.setMaxVerticalRMSE(maxVerticalRMSE);       // meters
         
         return aggregate;
     }

@@ -85,7 +85,7 @@ curl http://localhost:8080/api/flights/health
 curl http://localhost:8080/api/flights/test-oracle-connection
 
 # Get integration summary
-curl http://localhost:8080/api/flights/integration-summary
+# Integration summary endpoint has been removed
 ```
 
 ## Configuration Files Structure

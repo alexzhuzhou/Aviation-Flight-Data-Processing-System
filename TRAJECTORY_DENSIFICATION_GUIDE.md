@@ -191,7 +191,7 @@ curl -X POST http://localhost:8081/api/trajectory-densification/densify/batch \
   -d '{"planIds": [17879345, 17879346, 17879347]}'
 
 # 4. Run enhanced punctuality analysis with densified data
-curl http://localhost:8081/api/punctuality-analysis/run
+curl http://localhost:8081/api/punctuality-analysis/punctuality-kpis
 ```
 
 ## 📊 Expected Results

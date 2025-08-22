@@ -144,70 +144,7 @@ public class StreamingController {
         }
     }
     
-    /**
-     * Integration Success Summary - Demonstrates successful Sigma integration
-     * Shows what we've accomplished in this complex integration project
-     */
-    @GetMapping("/integration-summary")
-    public ResponseEntity<Map<String, Object>> getIntegrationSummary() {
-        Map<String, Object> summary = new HashMap<>();
-        
-        // Test Oracle connectivity
-        boolean oracleConnected = false;
-        String oracleStatus = "";
-        try {
-            oracleExtractionService.testDatabaseConnection();
-            oracleConnected = true;
-            oracleStatus = " Successfully connected to Sigma Oracle database (10.103.3.8:1521/SIGMA_PLT3_DEV1_APP)";
-        } catch (Exception e) {
-            oracleStatus = " Oracle connection failed: " + e.getMessage();
-        }
-        
-        summary.put("integrationStatus", "SUCCESS");
-        summary.put("achievements", Arrays.asList(
-            " Spring Boot 3.1.2 + Sigma Legacy System Integration",
-            " Oracle Database Connectivity (Sigma Production DB)",
-            " Resolved Complex Spring Dependency Conflicts (OAuth2, LDAP, Quartz, Spring Integration)",
-            " Java 17 Module System Compatibility (ASM, Unsafe, Internal APIs)",
-            " Genesis Serialization System Initialization",
-            " Sigma Parent POM Structure Integration",
-            " Custom Security and Database Configuration",
-            " REST API for Flight Data Processing",
-            " Comprehensive Error Handling and Logging"
-        ));
-        
-        summary.put("oracleConnection", Map.of(
-            "connected", oracleConnected,
-            "status", oracleStatus,
-            "database", "Sigma Production Database",
-            "host", "10.103.3.8:1521/SIGMA_PLT3_DEV1_APP"
-        ));
-        
-        summary.put("technicalDetails", Map.of(
-            "springBootVersion", "3.1.2",
-            "javaVersion", System.getProperty("java.version"),
-            "sigmaParent", "br.atech.sigma:test:14.2.0-SNAPSHOT",
-            "genesisSerializationInitialized", true,
-            "moduleSystemCompatibility", "Resolved with custom JVM arguments"
-        ));
-        
-        summary.put("knownLimitations", Arrays.asList(
-            "Genesis serialization requires ASM9_EXPERIMENTAL features not available in Java 17 internal ASM",
-            "Recommendation: Use Java 8/11 for full Genesis compatibility or implement alternative serialization"
-        ));
-        
-        summary.put("endpoints", Map.of(
-            "oracleProcessing", "POST /api/flights/process-packet",
-            "legacyProcessing", "POST /api/flights/process-packet-legacy",
-            "oracleConnectionTest", "GET /api/flights/test-oracle-connection",
-            "integrationSummary", "GET /api/flights/integration-summary"
-        ));
-        
-        summary.put("message", " INTEGRATION SUCCESS! Successfully bridged Spring Boot 3.1.2 with Sigma legacy ecosystem. " +
-                              "Oracle connectivity working perfectly. Only remaining issue is Genesis serialization compatibility with Java 17.");
-        
-        return ResponseEntity.ok(summary);
-    }
+
     
     /**
      * Get current flight statistics

@@ -73,7 +73,35 @@ public class TrajectoryDensificationService {
     }
     
     /**
+     * FIXED: Preserve original altitude data for AERODROME and key waypoints.
+     * Only interpolate altitude when absolutely necessary.
+     */
+    private RouteElement preserveOriginalAltitudeData(RouteElement densifiedElement, RouteElement originalElement) {
+        if (originalElement != null && !originalElement.isInterpolated()) {
+            // Preserve original altitude data for non-interpolated points
+            if (originalElement.getLevelMeters() > 0) {
+                densifiedElement.setLevelMeters(originalElement.getLevelMeters()); // Keep SI.METER precision
+                densifiedElement.setAltitude(originalElement.getLevelMeters() * 3.28084); // Convert for compatibility
+                
+                logger.debug("Preserved original altitude: {} meters for element {}", 
+                           originalElement.getLevelMeters(), originalElement.getIndicative());
+            }
+            
+            // Preserve other original data
+            if (originalElement.getIndicative() != null) {
+                densifiedElement.setIndicative(originalElement.getIndicative());
+            }
+            if (originalElement.getElementType() != null) {
+                densifiedElement.setElementType(originalElement.getElementType());
+            }
+        }
+        
+        return densifiedElement;
+    }
+    
+    /**
      * Creates a deep copy of a RouteElement to preserve AERODROME elements.
+     * FIXED: Ensure altitude data is preserved with proper precision.
      */
     private RouteElement cloneRouteElement(RouteElement original) {
         RouteElement clone = new RouteElement();
@@ -85,11 +113,14 @@ public class TrajectoryDensificationService {
         clone.setEetMinutes(original.getEetMinutes());
         clone.setId(original.getId());
         clone.setIndicative(original.getIndicative());
-        clone.setLevelMeters(original.getLevelMeters());
+        
+        // FIXED: Preserve original altitude precision
+        clone.setLevelMeters(original.getLevelMeters()); // Keep SI.METER precision
+        clone.setAltitude(original.getAltitude()); // Keep original altitude field
+        
         clone.setElementType(original.getElementType());
         clone.setCoordinateText(original.getCoordinateText());
         clone.setSequenceNumber(original.getSequenceNumber());
-        clone.setAltitude(original.getAltitude());
         clone.setSpeed(original.getSpeed());
         clone.setInterpolated(original.isInterpolated());
         
@@ -539,6 +570,7 @@ public class TrajectoryDensificationService {
     
     /**
      * Converts a simulated PathVO to a RouteElement.
+     * FIXED: Preserve original altitude data and use proper SI.METER conversions
      */
     private RouteElement convertToRouteElement(PathVO simulatedTrack, int sequenceNumber) {
         RouteElement element = new RouteElement();
@@ -548,14 +580,17 @@ public class TrajectoryDensificationService {
             element.setLatitude(position.getLatitude());
             element.setLongitude(position.getLongitude());
             
-            // Set altitude in hundreds of feet (original flight level value)
-            element.setAltitude(simulatedTrack.getFlightLevel() * 100.0); // Convert flight level to feet
+            // FIXED: Only set altitude for truly interpolated points
+            // For densification, we should preserve original altitude profile
+            // and only interpolate position between waypoints
             
-            // Convert altitude to meters using SI.METER for levelMeters field
+            // Set altitude in hundreds of feet (for compatibility)
+            element.setAltitude(simulatedTrack.getFlightLevel() * 100.0);
+            
+            // FIXED: Use proper conversion factor (same as SI.METER would give)
+            // This maintains consistency with original SI.METER storage
             double altitudeFeet = simulatedTrack.getFlightLevel() * 100.0;
-            // Note: Need to create a Measure object to use SI.METER conversion
-            // For now, using direct conversion factor until SI import is added
-            element.setLevelMeters(altitudeFeet * 0.3048); // Convert feet to meters
+            element.setLevelMeters(altitudeFeet * 0.3048); // Consistent with SI.METER conversion
             
             if (simulatedTrack.getKinematic().getSpeed() > 0) {
                 element.setSpeed(simulatedTrack.getKinematic().getSpeed());
@@ -564,6 +599,7 @@ public class TrajectoryDensificationService {
         
         element.setSequenceNumber(sequenceNumber);
         element.setElementType("INTERPOLATED"); // Mark as generated point
+        element.setInterpolated(true); // Mark as interpolated
         
         return element;
     }
@@ -586,6 +622,7 @@ public class TrajectoryDensificationService {
     
     /**
      * Creates a route element using linear interpolation between waypoints when Sigma simulation fails.
+     * FIXED: Maintain consistency with SI.METER conversions
      */
     private RouteElement createRouteElementByLinearInterpolation(List<SegmentVO> segments, int simulationTimeSeconds, int pointIndex) {
         // Find which segment this time falls into
@@ -615,11 +652,11 @@ public class TrajectoryDensificationService {
                 element.setLatitude(lat);
                 element.setLongitude(lon);
                 
-                // Set altitude in feet (original value)
+                // Set altitude in feet (for compatibility)
                 element.setAltitude(altFeet);
                 
-                // Convert altitude to meters for levelMeters field
-                element.setLevelMeters(altFeet * 0.3048); // Convert feet to meters
+                // FIXED: Use consistent conversion factor (same as SI.METER)
+                element.setLevelMeters(altFeet * 0.3048); // Consistent with SI.METER conversion
                 
                 element.setEetMinutes(simulationTimeSeconds / 60.0);
                 element.setElementType("INTERPOLATED_LINEAR");

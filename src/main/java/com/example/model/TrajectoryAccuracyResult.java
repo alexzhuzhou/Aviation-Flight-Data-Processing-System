@@ -30,18 +30,30 @@ public class TrajectoryAccuracyResult {
     
     // Nested class for aggregate metrics
     public static class AggregateAccuracyMetrics {
-        private double horizontalMSE;
-        private double horizontalRMSE;
-        private double verticalMSE;
-        private double verticalRMSE;
+        // Horizontal metrics (original in radians)
+        private double horizontalMSE;        // radians²
+        private double horizontalRMSE;       // radians
+        
+        // Horizontal metrics (converted to meters)
+        private double horizontalMSEMeters;  // meters²
+        private double horizontalRMSEMeters; // meters
+        
+        // Vertical metrics (always in meters)
+        private double verticalMSE;          // meters²
+        private double verticalRMSE;         // meters
+        
         private double averagePointsPerFlight;
         private int totalPointsAnalyzed;
         
-        // Statistics
-        private double minHorizontalRMSE;
-        private double maxHorizontalRMSE;
-        private double minVerticalRMSE;
-        private double maxVerticalRMSE;
+        // Statistics (both radians and meters for horizontal)
+        private double minHorizontalRMSE;        // radians
+        private double maxHorizontalRMSE;        // radians
+        private double minHorizontalRMSEMeters;  // meters
+        private double maxHorizontalRMSEMeters;  // meters
+        
+        // Vertical statistics (always in meters)
+        private double minVerticalRMSE;      // meters
+        private double maxVerticalRMSE;      // meters
         
         // Constructors
         public AggregateAccuracyMetrics() {}
@@ -57,13 +69,21 @@ public class TrajectoryAccuracyResult {
             this.totalPointsAnalyzed = totalPointsAnalyzed;
         }
         
-        // Getters and setters
+        // Getters and setters for horizontal metrics (radians)
         public double getHorizontalMSE() { return horizontalMSE; }
         public void setHorizontalMSE(double horizontalMSE) { this.horizontalMSE = horizontalMSE; }
         
         public double getHorizontalRMSE() { return horizontalRMSE; }
         public void setHorizontalRMSE(double horizontalRMSE) { this.horizontalRMSE = horizontalRMSE; }
         
+        // Getters and setters for horizontal metrics (meters)
+        public double getHorizontalMSEMeters() { return horizontalMSEMeters; }
+        public void setHorizontalMSEMeters(double horizontalMSEMeters) { this.horizontalMSEMeters = horizontalMSEMeters; }
+        
+        public double getHorizontalRMSEMeters() { return horizontalRMSEMeters; }
+        public void setHorizontalRMSEMeters(double horizontalRMSEMeters) { this.horizontalRMSEMeters = horizontalRMSEMeters; }
+        
+        // Getters and setters for vertical metrics (always meters)
         public double getVerticalMSE() { return verticalMSE; }
         public void setVerticalMSE(double verticalMSE) { this.verticalMSE = verticalMSE; }
         
@@ -76,12 +96,21 @@ public class TrajectoryAccuracyResult {
         public int getTotalPointsAnalyzed() { return totalPointsAnalyzed; }
         public void setTotalPointsAnalyzed(int totalPointsAnalyzed) { this.totalPointsAnalyzed = totalPointsAnalyzed; }
         
+        // Getters and setters for horizontal statistics (radians)
         public double getMinHorizontalRMSE() { return minHorizontalRMSE; }
         public void setMinHorizontalRMSE(double minHorizontalRMSE) { this.minHorizontalRMSE = minHorizontalRMSE; }
         
         public double getMaxHorizontalRMSE() { return maxHorizontalRMSE; }
         public void setMaxHorizontalRMSE(double maxHorizontalRMSE) { this.maxHorizontalRMSE = maxHorizontalRMSE; }
         
+        // Getters and setters for horizontal statistics (meters)
+        public double getMinHorizontalRMSEMeters() { return minHorizontalRMSEMeters; }
+        public void setMinHorizontalRMSEMeters(double minHorizontalRMSEMeters) { this.minHorizontalRMSEMeters = minHorizontalRMSEMeters; }
+        
+        public double getMaxHorizontalRMSEMeters() { return maxHorizontalRMSEMeters; }
+        public void setMaxHorizontalRMSEMeters(double maxHorizontalRMSEMeters) { this.maxHorizontalRMSEMeters = maxHorizontalRMSEMeters; }
+        
+        // Getters and setters for vertical statistics (always meters)
         public double getMinVerticalRMSE() { return minVerticalRMSE; }
         public void setMinVerticalRMSE(double minVerticalRMSE) { this.minVerticalRMSE = minVerticalRMSE; }
         
@@ -96,17 +125,27 @@ public class TrajectoryAccuracyResult {
         private String realIndicative;
         private int pointCount;
         
-        // Accuracy metrics
-        private double horizontalMSE;
-        private double horizontalRMSE;
-        private double verticalMSE;
-        private double verticalRMSE;
+        // Horizontal accuracy metrics (original in radians)
+        private double horizontalMSE;        // radians²
+        private double horizontalRMSE;       // radians
         
-        // Additional metrics
-        private double maxHorizontalError;
-        private double maxVerticalError;
-        private double averageHorizontalError;
-        private double averageVerticalError;
+        // Horizontal accuracy metrics (converted to meters)
+        private double horizontalMSEMeters;  // meters²
+        private double horizontalRMSEMeters; // meters
+        
+        // Vertical accuracy metrics (always in meters)
+        private double verticalMSE;          // meters²
+        private double verticalRMSE;         // meters
+        
+        // Additional metrics (both radians and meters for horizontal)
+        private double maxHorizontalError;        // radians
+        private double maxHorizontalErrorMeters;  // meters
+        private double averageHorizontalError;        // radians
+        private double averageHorizontalErrorMeters;  // meters
+        
+        // Vertical additional metrics (always in meters)
+        private double maxVerticalError;      // meters
+        private double averageVerticalError;  // meters
         
         // Constructors
         public FlightAccuracyMetrics() {}
@@ -124,7 +163,7 @@ public class TrajectoryAccuracyResult {
             this.verticalRMSE = verticalRMSE;
         }
         
-        // Getters and setters
+        // Basic getters and setters
         public Long getPlanId() { return planId; }
         public void setPlanId(Long planId) { this.planId = planId; }
         
@@ -137,26 +176,44 @@ public class TrajectoryAccuracyResult {
         public int getPointCount() { return pointCount; }
         public void setPointCount(int pointCount) { this.pointCount = pointCount; }
         
+        // Getters and setters for horizontal metrics (radians)
         public double getHorizontalMSE() { return horizontalMSE; }
         public void setHorizontalMSE(double horizontalMSE) { this.horizontalMSE = horizontalMSE; }
         
         public double getHorizontalRMSE() { return horizontalRMSE; }
         public void setHorizontalRMSE(double horizontalRMSE) { this.horizontalRMSE = horizontalRMSE; }
         
+        // Getters and setters for horizontal metrics (meters)
+        public double getHorizontalMSEMeters() { return horizontalMSEMeters; }
+        public void setHorizontalMSEMeters(double horizontalMSEMeters) { this.horizontalMSEMeters = horizontalMSEMeters; }
+        
+        public double getHorizontalRMSEMeters() { return horizontalRMSEMeters; }
+        public void setHorizontalRMSEMeters(double horizontalRMSEMeters) { this.horizontalRMSEMeters = horizontalRMSEMeters; }
+        
+        // Getters and setters for vertical metrics (always meters)
         public double getVerticalMSE() { return verticalMSE; }
         public void setVerticalMSE(double verticalMSE) { this.verticalMSE = verticalMSE; }
         
         public double getVerticalRMSE() { return verticalRMSE; }
         public void setVerticalRMSE(double verticalRMSE) { this.verticalRMSE = verticalRMSE; }
         
+        // Getters and setters for additional horizontal metrics (radians)
         public double getMaxHorizontalError() { return maxHorizontalError; }
         public void setMaxHorizontalError(double maxHorizontalError) { this.maxHorizontalError = maxHorizontalError; }
         
-        public double getMaxVerticalError() { return maxVerticalError; }
-        public void setMaxVerticalError(double maxVerticalError) { this.maxVerticalError = maxVerticalError; }
-        
         public double getAverageHorizontalError() { return averageHorizontalError; }
         public void setAverageHorizontalError(double averageHorizontalError) { this.averageHorizontalError = averageHorizontalError; }
+        
+        // Getters and setters for additional horizontal metrics (meters)
+        public double getMaxHorizontalErrorMeters() { return maxHorizontalErrorMeters; }
+        public void setMaxHorizontalErrorMeters(double maxHorizontalErrorMeters) { this.maxHorizontalErrorMeters = maxHorizontalErrorMeters; }
+        
+        public double getAverageHorizontalErrorMeters() { return averageHorizontalErrorMeters; }
+        public void setAverageHorizontalErrorMeters(double averageHorizontalErrorMeters) { this.averageHorizontalErrorMeters = averageHorizontalErrorMeters; }
+        
+        // Getters and setters for vertical additional metrics (always meters)
+        public double getMaxVerticalError() { return maxVerticalError; }
+        public void setMaxVerticalError(double maxVerticalError) { this.maxVerticalError = maxVerticalError; }
         
         public double getAverageVerticalError() { return averageVerticalError; }
         public void setAverageVerticalError(double averageVerticalError) { this.averageVerticalError = averageVerticalError; }

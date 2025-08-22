@@ -70,10 +70,7 @@ Tests the connection to the Sigma Oracle database and returns connection status.
 
 ---
 
-### **3. Integration Summary**  **NEW**
-**GET** `/api/flights/integration-summary`
 
-Provides comprehensive summary of the Oracle integration status, database statistics, and processing capabilities.
 
 #### **Response**
 ```json
@@ -632,10 +629,10 @@ curl -X GET http://localhost:8080/api/predicted-flights/health
 
 These endpoints handle arrival punctuality analysis (ICAO KPI14) by comparing predicted flight times with actual flight times.
 
-### **1. Run Punctuality Analysis** ⏰
-**GET** `/api/punctuality-analysis/run`
+### **1. Calculate Punctuality KPIs** ⏰
+**GET** `/api/punctuality-analysis/punctuality-kpis`
 
-Performs arrival punctuality analysis comparing predicted en-route time with executed flight time.
+Calculates punctuality KPIs comparing predicted en-route time with executed flight time.
 
 #### **Response**
 ```json
@@ -905,9 +902,9 @@ Calculates punctuality KPIs by comparing predicted vs actual flight times within
 
 ### **Using cURL**
 
-#### **Run Punctuality Analysis**
+#### **Calculate Punctuality KPIs**
 ```bash
-curl -X GET http://localhost:8080/api/punctuality-analysis/run
+curl -X GET http://localhost:8080/api/punctuality-analysis/punctuality-kpis
 ```
 
 #### **Get Analysis Statistics**

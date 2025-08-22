@@ -67,7 +67,7 @@ public class StreamingFlightApplication {
         System.out.println("");
         System.out.println("    Punctuality Analysis (ICAO KPI14):");
         System.out.println("   GET  /api/punctuality-analysis/match-flights  - Match predicted with real flights");
-        System.out.println("   GET  /api/punctuality-analysis/run            - Run full punctuality analysis");
+        System.out.println("   GET  /api/punctuality-analysis/punctuality-kpis - Calculate punctuality KPIs");
         System.out.println("   GET  /api/punctuality-analysis/stats          - Get analysis statistics");
         System.out.println("");
         System.out.println("    Trajectory Accuracy Analysis (MSE/RMSE):");

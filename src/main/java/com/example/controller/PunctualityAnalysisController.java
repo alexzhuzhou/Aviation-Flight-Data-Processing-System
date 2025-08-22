@@ -1,7 +1,7 @@
 package com.example.controller;
 
 import com.example.service.PunctualityAnalysisService;
-import com.example.model.PunctualityAnalysisResult;
+
 import com.example.model.PredictedFlightData;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -112,43 +112,7 @@ public class PunctualityAnalysisController {
         }
     }
     
-    /**
-     * Arrival Punctuality Analysis (ICAO KPI14)
-     * Compares predicted en-route time with executed flight time
-     * 
-     * This endpoint analyzes the accuracy of flight time predictions by:
-     * 1. Matching predicted flights (instanceId) with real flights (planId)
-     * 2. Calculating predicted en-route time from route predictor data
-     * 3. Calculating executed flight time from actual flight data
-     * 4. Comparing times and categorizing by delay tolerance windows (±3, ±5, ±15 minutes)
-     * 5. Providing KPI percentages for punctuality assessment
-     */
-    @GetMapping("/run")
-    public ResponseEntity<PunctualityAnalysisResult> performPunctualityAnalysis() {
-        try {
-            logger.info("Starting arrival punctuality analysis (ICAO KPI14) via REST endpoint");
-            
-            PunctualityAnalysisResult result = punctualityAnalysisService.performPunctualityAnalysis();
-            
-            if (result.getTotalAnalyzedFlights() > 0) {
-                logger.info("Punctuality analysis completed successfully: {} flights analyzed", 
-                    result.getTotalAnalyzedFlights());
-                return ResponseEntity.ok(result);
-            } else {
-                logger.warn("Punctuality analysis completed but no flights could be analyzed");
-                return ResponseEntity.ok(result); // Return the result even if no flights analyzed
-            }
-            
-        } catch (Exception e) {
-            logger.error("Error performing punctuality analysis", e);
-            PunctualityAnalysisResult errorResult = new PunctualityAnalysisResult(
-                0, 0, new ArrayList<>(), 
-                java.time.LocalDateTime.now().toString(), 
-                "Error during punctuality analysis: " + e.getMessage()
-            );
-            return ResponseEntity.status(500).body(errorResult);
-        }
-    }
+
     
     /**
      * Get punctuality analysis statistics summary

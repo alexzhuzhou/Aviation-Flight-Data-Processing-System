@@ -1,29 +1,25 @@
 # Service Layer Documentation
 
-This document explains all the services in the Aviation Replay Data Processor and their responsibilities.
+This document explains all the services in the Aviation Flight Data Processing System and their responsibilities.
 
 ## Service Overview
 
 The services are organized by their primary responsibilities:
 
-### **1. Data Processing Services**
+### **1. Core Processing Services**
 | Service | Purpose | Primary Use |
 |---------|---------|-------------|
 | **StreamingFlightService** | Real-time data processing | Production streaming API |
 | **PredictedFlightService** | Predicted flight processing | Prediction data storage and analysis |
-| **FlightDataJoinService** | Data joining and export | Batch processing and export |
-| **OracleDataExtractionService** | **NEW** - Oracle database integration | Direct data extraction from Sigma production database |
+| **OracleDataExtractionService** | Oracle database integration | Direct data extraction from Sigma production database |
+| **OracleFlightDataService** | Oracle flight data operations | Predicted flight data extraction |
 
-### **2. Data Access Services**
+### **2. Analysis Services**
 | Service | Purpose | Primary Use |
 |---------|---------|-------------|
-| **ReplayDataService** | File loading and basic access | File-based operations |
-
-### **3. Analysis Services**
-| Service | Purpose | Primary Use |
-|---------|---------|-------------|
-| **DataAnalysisService** | Comprehensive data analysis | Data quality and insights |
 | **PunctualityAnalysisService** | Arrival punctuality analysis (ICAO KPI14) | KPI metrics and comparison |
+| **TrajectoryAccuracyAnalysisService** | Trajectory accuracy analysis (MSE/RMSE) | Flight path accuracy metrics |
+| **TrajectoryDensificationService** | Trajectory densification | Route interpolation and densification |
 
 ## Service Responsibilities
 

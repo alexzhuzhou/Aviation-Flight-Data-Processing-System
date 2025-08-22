@@ -96,13 +96,13 @@ This application processes aviation flight data from multiple sources and provid
 │   │   │   │   │   ├── OracleProcessingResult.java  # NEW: Oracle processing results
 │   │   │   │   │   └── BatchProcessingResult.java   # NEW: Batch processing results
 │   │   │   │   ├── service/                         # Business logic
-│   │   │   │   │   ├── ReplayDataService.java       # Data analysis service
 │   │   │   │   │   ├── StreamingFlightService.java  # Core streaming logic
-│   │   │   │   │   ├── FlightDataJoinService.java   # Data joining service
-│   │   │   │   │   ├── DataAnalysisService.java     # Statistical analysis
+│   │   │   │   │   ├── OracleDataExtractionService.java # Oracle database integration
+│   │   │   │   │   ├── OracleFlightDataService.java # Oracle flight data operations
 │   │   │   │   │   ├── PredictedFlightService.java  # Predicted flight processing
 │   │   │   │   │   ├── PunctualityAnalysisService.java # Punctuality analysis service
-│   │   │   │   │   └── OracleDataExtractionService.java # NEW: Oracle database integration
+│   │   │   │   │   ├── TrajectoryAccuracyAnalysisService.java # Trajectory accuracy analysis
+│   │   │   │   │   └── TrajectoryDensificationService.java # Trajectory densification
 │   │   │   │   └── repository/
 │   │   │   │       ├── FlightRepository.java        # MongoDB repository
 │   │   │   │       └── PredictedFlightRepository.java # Predicted flights repository
@@ -146,8 +146,8 @@ The streaming service will start on `http://localhost:8080`
 ### Option 2: Batch Processing (Development/Testing Only)
 
 ```bash
-# Run the batch processing application (for testing with JSON files)
-mvn exec:java -Dexec.mainClass="com.example.App"
+# Note: Batch processing is now handled through REST API endpoints
+# Use the streaming service endpoints instead
 ```
 
 ##  Streaming API Endpoints
@@ -159,7 +159,7 @@ mvn exec:java -Dexec.mainClass="com.example.App"
 | `POST` | `/api/flights/process-packet` | **NEW:** Process flight data directly from Oracle database | None (uses hardcoded date 2025-07-11) |
 | `POST` | `/api/flights/process-packet-legacy` | Process single ReplayPath packet (legacy JSON input) | Single `ReplayPath` object |
 | `GET` | `/api/flights/test-oracle-connection` | **NEW:** Test Oracle database connection | None |
-| `GET` | `/api/flights/integration-summary` | **NEW:** Get comprehensive integration summary | None |
+
 | `GET` | `/api/flights/plan-ids` | Get all planIds for prediction scripts | None |
 | `GET` | `/api/flights/stats` | Get flight statistics | None |
 | `GET` | `/api/flights/health` | Health check | None |
@@ -180,7 +180,7 @@ mvn exec:java -Dexec.mainClass="com.example.App"
 | Method | Endpoint | Description | Input Format |
 |--------|----------|-------------|--------------|
 | `GET` | `/api/punctuality-analysis/match-flights` | Match predicted flights with real flights | None |
-| `GET` | `/api/punctuality-analysis/run` | Run full punctuality analysis (ICAO KPI14) | None |
+
 | `GET` | `/api/punctuality-analysis/stats` | Get analysis statistics | None |
 | `GET` | `/api/punctuality-analysis/health` | Health check for punctuality analysis | None |
 
@@ -206,8 +206,7 @@ curl -X POST http://localhost:8080/api/flights/process-packet
 # NEW: Test Oracle database connection
 curl http://localhost:8080/api/flights/test-oracle-connection
 
-# NEW: Get comprehensive integration summary
-curl http://localhost:8080/api/flights/integration-summary
+
 
 # Process a single packet (legacy JSON input)
 curl -X POST http://localhost:8080/api/flights/process-packet-legacy \
@@ -298,8 +297,8 @@ curl http://localhost:8080/api/punctuality-analysis/match-flights
   "processingTimeMs": 456
 }
 
-# Run full punctuality analysis (ICAO KPI14)
-curl http://localhost:8080/api/punctuality-analysis/run
+# Run punctuality KPI analysis (ICAO KPI14)
+curl http://localhost:8080/api/punctuality-analysis/punctuality-kpis
 
 # Response example:
 {
@@ -410,8 +409,8 @@ curl -X POST http://localhost:8080/api/predicted-flights/batch \
 
 #### **Step 5: Run Punctuality Analysis**
 ```bash
-# Match predicted flights with real flights and analyze punctuality
-curl http://localhost:8080/api/punctuality-analysis/run
+# Match predicted flights with real flights and analyze punctuality KPIs
+curl http://localhost:8080/api/punctuality-analysis/punctuality-kpis
 
 # Get detailed flight matching information
 curl http://localhost:8080/api/punctuality-analysis/match-flights
@@ -654,8 +653,8 @@ curl http://localhost:8080/api/predicted-flights/stats
 
 #### **Run Punctuality Analysis (ICAO KPI14)**
 ```bash
-# Perform arrival punctuality analysis
-curl http://localhost:8080/api/punctuality-analysis/run
+# Perform arrival punctuality KPI analysis
+curl http://localhost:8080/api/punctuality-analysis/punctuality-kpis
 
 # Expected response:
 {

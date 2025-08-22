@@ -195,9 +195,9 @@ curl http://localhost:8080/api/punctuality-analysis/match-flights
 }
 ```
 
-#### Run Full Punctuality Analysis
+#### Run Punctuality KPI Analysis
 ```bash
-curl http://localhost:8080/api/punctuality-analysis/run
+curl http://localhost:8080/api/punctuality-analysis/punctuality-kpis
 ```
 
 **Expected Response:**
@@ -280,8 +280,8 @@ curl -X POST http://localhost:8080/api/predicted-flights/batch \
   -H "Content-Type: application/json" \
   -d '{"planIds": [17879345, 17879346, 17879347]}'
 
-# 5. Run punctuality analysis
-curl http://localhost:8080/api/punctuality-analysis/run
+# 5. Run punctuality KPI analysis
+curl http://localhost:8080/api/punctuality-analysis/punctuality-kpis
 
 # 6. Get final statistics
 curl http://localhost:8080/api/flights/stats
@@ -329,8 +329,8 @@ class AviationAPIClient:
         return response.json()
     
     def run_punctuality_analysis(self) -> Dict[str, Any]:
-        """Run complete punctuality analysis"""
-        response = requests.get(f"{self.base_url}/api/punctuality-analysis/run")
+        """Run punctuality KPI analysis"""
+        response = requests.get(f"{self.base_url}/api/punctuality-analysis/punctuality-kpis")
         return response.json()
     
     def get_all_stats(self) -> Dict[str, Any]:
