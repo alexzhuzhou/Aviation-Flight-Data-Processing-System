@@ -7,6 +7,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.Iterator;
 import java.util.Spliterators;
 import java.util.stream.Stream;
@@ -42,6 +43,13 @@ public class SigmaConfig {
     private static final Logger LOGGER = LoggerFactory.getLogger(SigmaConfig.class);
     
     /**
+     * Extended interface for IMergeSupport with time filtering capability
+     */
+    public interface ExtendedIMergeSupport extends IMergeSupport {
+        Stream<Pair<Long, byte[]>> streamPackets(LocalDate date, LocalTime startTime, LocalTime endTime);
+    }
+    
+    /**
      * IMergeSupport implementation for streaming packets from Sigma Oracle database
      * 
      * This implementation replicates the functionality from the Sigma GSA server
@@ -49,9 +57,9 @@ public class SigmaConfig {
      * TB_STORE_REPLAY table for flight data packets.
      */
     @Bean
-    public IMergeSupport mergeSupport(@Qualifier("sigmaOracleDataSource") DataSource dataSource,
+    public ExtendedIMergeSupport mergeSupport(@Qualifier("sigmaOracleDataSource") DataSource dataSource,
                                      @Qualifier("jdbcTemplateSigma") JdbcOperations jdbcOperations) {
-        return new IMergeSupport() {
+        return new ExtendedIMergeSupport() {
             
             @Override
             public Stream<Pair<Long, byte[]>> streamPackets(final LocalDate ts) {
@@ -115,6 +123,91 @@ public class SigmaConfig {
                         
                 } catch (final Exception e) {
                     LOGGER.warn("Error streaming packets from Oracle database", e);
+                    closeConnection(c, p, r);
+                }
+                
+                return Stream.empty();
+            }
+            
+            /**
+             * Stream packets from Oracle database with time range filtering
+             * 
+             * @param date The date to query
+             * @param startTime Start time for filtering (inclusive)
+             * @param endTime End time for filtering (inclusive)
+             * @return Stream of timestamp-data pairs
+             */
+            public Stream<Pair<Long, byte[]>> streamPackets(final LocalDate date, final LocalTime startTime, final LocalTime endTime) {
+                LOGGER.debug("Streaming packets from Oracle database for date: {} from {} to {}", date, startTime, endTime);
+                
+                Connection c = null;
+                PreparedStatement p = null;
+                ResultSet r = null;
+                
+                try {
+                    // Format date and time strings for Oracle query
+                    String startDateTime = String.format("%s %02d:%02d:00", 
+                        IMergeSupport.formatName(date, "/"), 
+                        startTime.getHour(), 
+                        startTime.getMinute());
+                    String endDateTime = String.format("%s %02d:%02d:59", 
+                        IMergeSupport.formatName(date, "/"), 
+                        endTime.getHour(), 
+                        endTime.getMinute());
+                    
+                    final var con = c = dataSource.getConnection();
+                    final var pst = p = con.prepareStatement(
+                        "select NR_TIMESTAMP, DS_DATA from TB_STORE_REPLAY " +
+                        "where nr_timestamp >= TO_DATE('" + startDateTime + "', 'DD/MM/RR HH24:MI:SS') and " +
+                        "nr_timestamp <= TO_DATE('" + endDateTime + "', 'DD/MM/RR HH24:MI:SS') " +
+                        "order by nr_timestamp asc"
+                    );
+                    final var rs = r = pst.executeQuery();
+                    
+                    final var itr = new Iterator<Pair<Long, byte[]>>() {
+                        boolean ready;
+                        
+                        @Override
+                        public boolean hasNext() {
+                            if (!ready) {
+                                tryAdvance();
+                            }
+                            return ready;
+                        }
+                        
+                        @Override
+                        public Pair<Long, byte[]> next() {
+                            if (!ready) {
+                                throw new IllegalStateException();
+                            }
+                            
+                            ready = false;
+                            
+                            try {
+                                final Long l = rs.getTimestamp(1).getTime();
+                                final byte[] chunk = rs.getBytes(2);
+                                return Pair.of(l, chunk);
+                            } catch (final SQLException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                        
+                        private void tryAdvance() {
+                            try {
+                                ready = rs.next();
+                            } catch (final SQLException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    };
+                    
+                    return StreamSupport.stream(Spliterators.spliteratorUnknownSize(itr, 0), false)
+                        .onClose(() -> {
+                            closeConnection(con, pst, rs);
+                        });
+                        
+                } catch (final Exception e) {
+                    LOGGER.warn("Error streaming packets from Oracle database with time filter", e);
                     closeConnection(c, p, r);
                 }
                 

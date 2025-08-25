@@ -44,27 +44,52 @@ public class StreamingController {
      * the existing StreamingFlightService, providing the same functionality as
      * PathVoGeneratorTest but as a REST endpoint.
      * 
-     * No request body needed - triggers processing of hardcoded date (2025-07-11)
+     * Now supports optional date and time range parameters for flexible data extraction.
+     * 
+     * @param date Optional date parameter (format: YYYY-MM-DD). If not provided, uses hardcoded date (2025-07-11)
+     * @param startTime Optional start time parameter (format: HH:mm). If provided, endTime must also be provided
+     * @param endTime Optional end time parameter (format: HH:mm). If provided, startTime must also be provided
      */
     @PostMapping("/process-packet")
-    public ResponseEntity<OracleProcessingResult> processPacketFromOracle() {
+    public ResponseEntity<OracleProcessingResult> processPacketFromOracle(
+            @RequestParam(required = false) String date,
+            @RequestParam(required = false) String startTime,
+            @RequestParam(required = false) String endTime) {
         
         try {
             logger.info("Starting Oracle-based flight data processing...");
+            
+            // Validate time parameters
+            if ((startTime != null && endTime == null) || (startTime == null && endTime != null)) {
+                OracleProcessingResult errorResult = new OracleProcessingResult(
+                    0, 0, 0, 0, 0, 
+                    "Parameter Validation Failed", 
+                    date != null ? date : "2025-07-11", 
+                    "Both startTime and endTime must be provided together, or both should be omitted for full day processing"
+                );
+                return ResponseEntity.badRequest().body(errorResult);
+            }
             
             // Test database connection first
             if (!oracleExtractionService.testDatabaseConnection()) {
                 OracleProcessingResult errorResult = new OracleProcessingResult(
                     0, 0, 0, 0, 0, 
                     "Sigma Oracle Database (Connection Failed)", 
-                    "2025-07-11", 
+                    date != null ? date : "2025-07-11", 
                     "Failed to connect to Oracle database"
                 );
                 return ResponseEntity.status(503).body(errorResult);
             }
             
-            // Extract and process data from Oracle
-            OracleProcessingResult result = oracleExtractionService.extractAndProcessFlightData();
+            // Extract and process data from Oracle with optional parameters
+            OracleProcessingResult result;
+            if (date != null || (startTime != null && endTime != null)) {
+                // Use parameterized extraction
+                result = oracleExtractionService.extractAndProcessFlightData(date, startTime, endTime);
+            } else {
+                // Use default extraction (existing behavior)
+                result = oracleExtractionService.extractAndProcessFlightData();
+            }
             
             // Return appropriate HTTP status based on results
             if (result.getPacketsWithErrors() > 0 && result.getTotalPacketsProcessed() == 0) {
