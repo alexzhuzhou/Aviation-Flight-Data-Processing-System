@@ -693,6 +693,7 @@ public class PunctualityAnalysisService {
                     
                     // Create detailed result for this flight
                     Map<String, Object> flightResult = new HashMap<>();
+                    flightResult.put("planId", realFlight.getPlanId()); // Add planId as unique identifier
                     flightResult.put("flightIndicative", predictedFlight.getIndicative());
                     flightResult.put("actualDurationMs", actualDuration);
                     flightResult.put("predictedDurationMs", predictedDuration);
@@ -707,8 +708,8 @@ public class PunctualityAnalysisService {
                     
                     punctualityResults.add(flightResult);
                     
-                    logger.debug("Flight {}: Actual={}ms, Predicted={}ms, Diff={}ms ({}min), Within3Min={}, Within5Min={}, Within15Min={}", 
-                        predictedFlight.getIndicative(), actualDuration, predictedDuration, timeDifference, 
+                    logger.debug("Flight {} (planId: {}): Actual={}ms, Predicted={}ms, Diff={}ms ({}min), Within3Min={}, Within5Min={}, Within15Min={}", 
+                        predictedFlight.getIndicative(), realFlight.getPlanId(), actualDuration, predictedDuration, timeDifference, 
                         timeDifference / 60000.0, within3MinWindow, within5MinWindow, within15MinWindow);
                         
                 } catch (Exception e) {

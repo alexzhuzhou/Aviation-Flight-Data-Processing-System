@@ -242,7 +242,7 @@ public class TrajectoryDensificationService {
                    flightIntention.getExtractionRoute() != null ? flightIntention.getExtractionRoute().getSegments().size() : 0,
                    flightIntention.getFlightPlanDate() != null ? flightIntention.getFlightPlanDate().getTime() : "null");
         
-        // 2. Calculate time intervals based on FLIGHT PLAN duration, not real flight duration
+        // 2. FIXED: Use real flight timestamps for temporal alignment
         // Get the total flight plan duration from first to last segment
         List<SegmentVO> segments = flightIntention.getExtractionRoute().getSegments();
         if (segments.isEmpty()) {
@@ -254,11 +254,18 @@ public class TrajectoryDensificationService {
         int flightPlanEndSeconds = segments.get(segments.size() - 1).getSecond().getAetSeconds();
         int flightPlanDurationSeconds = flightPlanEndSeconds - flightPlanStartSeconds;
         
-        long timeIntervalSeconds = flightPlanDurationSeconds / (targetPointCount - 1);
+        // FIXED: Get real flight timing for temporal alignment
+        List<TrackingPoint> realPoints = realFlight.getTrackingPoints();
+        long realFlightStartMs = realPoints.get(0).getTimestamp();
+        long realFlightEndMs = realPoints.get(realPoints.size() - 1).getTimestamp();
+        long realFlightDurationMs = realFlightEndMs - realFlightStartMs;
         
-        logger.debug("Flight plan: start={}s, end={}s, duration={}s ({}min), interval={}s", 
+        logger.debug("Flight plan: start={}s, end={}s, duration={}s ({}min)", 
                    flightPlanStartSeconds, flightPlanEndSeconds, flightPlanDurationSeconds, 
-                   flightPlanDurationSeconds/60, timeIntervalSeconds);
+                   flightPlanDurationSeconds/60);
+        logger.debug("Real flight: start={}ms, end={}ms, duration={}ms ({}min)", 
+                   realFlightStartMs, realFlightEndMs, realFlightDurationMs, 
+                   realFlightDurationMs/60000);
         
         // 3. Use simulation engine to generate intermediate points
         Calendar startTime = getFlightStartTime(realFlight);
@@ -294,12 +301,20 @@ public class TrajectoryDensificationService {
                 densifiedElement.setInterpolated(false); // Mark as original
                 logger.debug("Preserved last AERODROME element: {}", densifiedElement.getIndicative());
             } else {
-                // Generate intermediate points using Sigma simulation
-                // FIXED: Calculate simulation time based on flight plan progression
-                int simulationTimeSeconds = flightPlanStartSeconds + (int) (i * timeIntervalSeconds);
+                // FIXED: Generate intermediate points using real flight timestamps for temporal alignment
+                // Get the real flight timestamp for this point
+                long realPointTimestamp = realPoints.get(i).getTimestamp();
                 
-                // FIXED: Convert to Calendar time in UTC - Add AET offset to actual flight start time
-                Calendar currentTime = createUTCCalendar(startTime.getTimeInMillis()); // Use UTC
+                // Calculate how far through the real flight we are (0.0 to 1.0)
+                double realFlightProgress = (double)(realPointTimestamp - realFlightStartMs) / realFlightDurationMs;
+                
+                // Map this progress to flight plan time
+                int simulationTimeSeconds = flightPlanStartSeconds + (int)(realFlightProgress * flightPlanDurationSeconds);
+                
+                // FIXED: Convert to Calendar time using EOBT + simulation time offset
+                Calendar currentTime = (Calendar) flightIntention.getFlightPlanDate().clone();
+                
+                // Add the simulation time offset to the EOBT
                 currentTime.add(Calendar.SECOND, simulationTimeSeconds);
                 
                 simulator.setCurrentTime(currentTime);
@@ -318,6 +333,12 @@ public class TrajectoryDensificationService {
                         densifiedElement = convertToRouteElement(simulatedTrack, i);
                         densifiedElement.setInterpolated(true); // Mark as generated
                         sigmaSuccessCount++;
+                        
+                        // Debug logging for temporal alignment
+                        if (i < 5 || i % 50 == 0) {
+                            logger.debug("Point {}: realTime={}ms, progress={:.3f}, simTime={}s, sigmaTime={}", 
+                                       i, realPointTimestamp, realFlightProgress, simulationTimeSeconds, currentTime.getTime());
+                        }
                     } else {
                         // FALLBACK: Use linear interpolation between waypoints
                         densifiedElement = createRouteElementByLinearInterpolation(segments, simulationTimeSeconds, i);
@@ -328,6 +349,7 @@ public class TrajectoryDensificationService {
                     }
                 } catch (Exception e) {
                     // FALLBACK: Use linear interpolation on exception
+                    logger.debug("Sigma simulation failed for point {}, using linear interpolation: {}", i, e.getMessage());
                     densifiedElement = createRouteElementByLinearInterpolation(segments, simulationTimeSeconds, i);
                     if (densifiedElement != null) {
                         densifiedElement.setInterpolated(true); // Mark as generated
