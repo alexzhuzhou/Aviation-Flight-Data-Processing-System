@@ -23,9 +23,11 @@ import com.example.model.JoinedFlightData;
 import com.example.model.OracleExtractionResponse;
 import com.example.model.PlanIdRequest;
 import com.example.model.PredictedFlightData;
+import com.example.model.ProcessingHistory;
 import com.example.repository.FlightRepository;
 import com.example.service.OracleFlightDataService;
 import com.example.service.PredictedFlightService;
+import com.example.service.ProcessingHistoryService;
 
 /**
  * REST controller for predicted flight data processing with Oracle integration
@@ -48,6 +50,9 @@ public class PredictedFlightController {
     
     @Autowired
     private FlightRepository flightRepository;
+    
+    @Autowired
+    private ProcessingHistoryService historyService;
     
     /**
      * Process predicted flight data from Oracle database using planId
@@ -316,6 +321,12 @@ public class PredictedFlightController {
     public ResponseEntity<Map<String, Object>> autoSyncPredictedFlights() {
         logger.info("Starting auto-sync of predicted flights based on real flight planIds");
         
+        // Start tracking this operation
+        ProcessingHistory history = historyService.startOperation(
+            ProcessingHistory.OperationType.SYNC_PREDICTED_DATA, 
+            "/api/predicted-flights/auto-sync"
+        );
+        
         long startTime = System.currentTimeMillis();
         
         try {
@@ -323,10 +334,14 @@ public class PredictedFlightController {
             List<Long> realFlightPlanIds = getAllRealFlightPlanIds();
             
             if (realFlightPlanIds.isEmpty()) {
+                long duration = System.currentTimeMillis() - startTime;
+                historyService.completeFailure(history.getId(), duration, 
+                    "No real flights found in database");
+                
                 Map<String, Object> response = new HashMap<>();
                 response.put("status", "NO_DATA");
                 response.put("message", "No real flights found in database");
-                response.put("processingTimeMs", System.currentTimeMillis() - startTime);
+                response.put("processingTimeMs", duration);
                 return ResponseEntity.ok(response);
             }
             
@@ -373,6 +388,26 @@ public class PredictedFlightController {
             
             // Step 3: Build comprehensive response
             long totalProcessingTime = System.currentTimeMillis() - startTime;
+            
+            // Complete history tracking based on results
+            if (batchResult.getTotalErrors() > 0 && batchResult.getTotalProcessed() == 0) {
+                // All failed
+                historyService.completeFailure(history.getId(), totalProcessingTime, 
+                    String.format("All %d predicted flights failed processing", batchResult.getTotalRequested()));
+            } else if (batchResult.getTotalErrors() > 0 || batchResult.getTotalNotFound() > 0) {
+                // Partial success
+                historyService.completePartialSuccess(history.getId(), totalProcessingTime, 
+                    String.format("Auto-sync completed with some issues: %d processed, %d not found, %d errors", 
+                                 batchResult.getTotalProcessed(), batchResult.getTotalNotFound(), batchResult.getTotalErrors()),
+                    batchResult.getTotalProcessed(), batchResult.getTotalErrors());
+            } else {
+                // Full success
+                historyService.completeSuccess(history.getId(), totalProcessingTime, 
+                    String.format("Auto-sync completed successfully: %d predicted flights processed", 
+                                 batchResult.getTotalProcessed()),
+                    batchResult.getTotalProcessed());
+            }
+            
             Map<String, Object> response = new HashMap<>();
             response.put("status", "SUCCESS");
             response.put("totalRealFlights", realFlightPlanIds.size());
@@ -399,10 +434,14 @@ public class PredictedFlightController {
         } catch (Exception e) {
             logger.error("Error during auto-sync of predicted flights", e);
             
+            long duration = System.currentTimeMillis() - startTime;
+            historyService.completeFailure(history.getId(), duration, 
+                "Auto-sync failed: " + e.getMessage());
+            
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("status", "ERROR");
             errorResponse.put("error", "Auto-sync failed: " + e.getMessage());
-            errorResponse.put("processingTimeMs", System.currentTimeMillis() - startTime);
+            errorResponse.put("processingTimeMs", duration);
             
             return ResponseEntity.status(500).body(errorResponse);
         }

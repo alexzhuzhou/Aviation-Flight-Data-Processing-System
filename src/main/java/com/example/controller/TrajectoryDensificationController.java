@@ -11,7 +11,9 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.example.model.TrajectoryDensificationResult;
+import com.example.model.ProcessingHistory;
 import com.example.service.TrajectoryDensificationService;
+import com.example.service.ProcessingHistoryService;
 import com.example.repository.FlightRepository;
 
 /**
@@ -32,6 +34,9 @@ public class TrajectoryDensificationController {
     
     @Autowired
     private FlightRepository flightRepository;
+    
+    @Autowired
+    private ProcessingHistoryService historyService;
     
     /**
      * Densifies a single predicted flight trajectory.
@@ -142,6 +147,13 @@ public class TrajectoryDensificationController {
     @PostMapping("/auto-sync")
     public ResponseEntity<Map<String, Object>> autoSyncDensification() {
         logger.info("Starting automatic trajectory densification sync for all flights");
+        
+        // Start tracking this operation
+        ProcessingHistory history = historyService.startOperation(
+            ProcessingHistory.OperationType.DENSIFY_PREDICTED_DATA, 
+            "/api/trajectory-densification/auto-sync"
+        );
+        
         long startTime = System.currentTimeMillis();
         
         try {
@@ -152,12 +164,16 @@ public class TrajectoryDensificationController {
                 .collect(java.util.stream.Collectors.toList());
             
             if (allPlanIds.isEmpty()) {
+                long duration = System.currentTimeMillis() - startTime;
+                historyService.completeFailure(history.getId(), duration, 
+                    "No real flights found in database");
+                
                 Map<String, Object> response = new HashMap<>();
                 response.put("totalRequested", 0);
                 response.put("totalProcessed", 0);
                 response.put("totalErrors", 0);
                 response.put("message", "No real flights found in database");
-                response.put("processingTimeMs", System.currentTimeMillis() - startTime);
+                response.put("processingTimeMs", duration);
                 return ResponseEntity.ok(response);
             }
             
@@ -181,6 +197,25 @@ public class TrajectoryDensificationController {
                 (double) highSigmaSuccessCount / successCount * 100.0 : 0.0;
             
             // Step 4: Build comprehensive response
+            // Complete history tracking based on results
+            if (errorCount > 0 && successCount == 0) {
+                // All failed
+                historyService.completeFailure(history.getId(), totalProcessingTime, 
+                    String.format("All %d trajectory densifications failed", allPlanIds.size()));
+            } else if (errorCount > 0) {
+                // Partial success
+                historyService.completePartialSuccess(history.getId(), totalProcessingTime, 
+                    String.format("Auto-sync densification completed with some errors: %d successful, %d errors", 
+                                 successCount, errorCount),
+                    (int) successCount, (int) errorCount);
+            } else {
+                // Full success
+                historyService.completeSuccess(history.getId(), totalProcessingTime, 
+                    String.format("Auto-sync densification completed successfully: %d trajectories densified", 
+                                 successCount),
+                    (int) successCount);
+            }
+            
             Map<String, Object> response = new HashMap<>();
             response.put("totalRequested", allPlanIds.size());
             response.put("totalProcessed", successCount);
@@ -212,6 +247,10 @@ public class TrajectoryDensificationController {
             
         } catch (Exception e) {
             logger.error("Error in auto-sync trajectory densification", e);
+            
+            long duration = System.currentTimeMillis() - startTime;
+            historyService.completeFailure(history.getId(), duration, 
+                "Auto-sync densification failed: " + e.getMessage());
             
             Map<String, Object> errorResponse = new HashMap<>();
             errorResponse.put("error", "Auto-sync densification failed: " + e.getMessage());

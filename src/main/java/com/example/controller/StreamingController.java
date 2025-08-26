@@ -3,8 +3,10 @@ package com.example.controller;
 import com.example.model.ReplayPath;
 import com.example.model.JoinedFlightData;
 import com.example.model.OracleProcessingResult;
+import com.example.model.ProcessingHistory;
 import com.example.service.StreamingFlightService;
 import com.example.service.OracleDataExtractionService;
+import com.example.service.ProcessingHistoryService;
 import com.example.repository.FlightRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -36,6 +38,9 @@ public class StreamingController {
     @Autowired
     private FlightRepository flightRepository;
     
+    @Autowired
+    private ProcessingHistoryService historyService;
+    
     /**
      * NEW: Main endpoint for processing flight data directly from Oracle database
      * 
@@ -56,11 +61,25 @@ public class StreamingController {
             @RequestParam(required = false) String startTime,
             @RequestParam(required = false) String endTime) {
         
+        // Start tracking this operation
+        String requestParams = String.format("date=%s, startTime=%s, endTime=%s", date, startTime, endTime);
+        ProcessingHistory history = historyService.startOperation(
+            ProcessingHistory.OperationType.PROCESS_REAL_DATA, 
+            "/api/flights/process-packet",
+            requestParams
+        );
+        
+        long startTimeMs = System.currentTimeMillis();
+        
         try {
             logger.info("Starting Oracle-based flight data processing...");
             
             // Validate time parameters
             if ((startTime != null && endTime == null) || (startTime == null && endTime != null)) {
+                long duration = System.currentTimeMillis() - startTimeMs;
+                historyService.completeFailure(history.getId(), duration, 
+                    "Parameter validation failed: Both startTime and endTime must be provided together");
+                
                 OracleProcessingResult errorResult = new OracleProcessingResult(
                     0, 0, 0, 0, 0, 
                     "Parameter Validation Failed", 
@@ -72,6 +91,10 @@ public class StreamingController {
             
             // Test database connection first
             if (!oracleExtractionService.testDatabaseConnection()) {
+                long duration = System.currentTimeMillis() - startTimeMs;
+                historyService.completeFailure(history.getId(), duration, 
+                    "Failed to connect to Oracle database");
+                
                 OracleProcessingResult errorResult = new OracleProcessingResult(
                     0, 0, 0, 0, 0, 
                     "Sigma Oracle Database (Connection Failed)", 
@@ -91,20 +114,33 @@ public class StreamingController {
                 result = oracleExtractionService.extractAndProcessFlightData();
             }
             
-            // Return appropriate HTTP status based on results
+            // Complete history tracking based on results
+            long duration = System.currentTimeMillis() - startTimeMs;
+            int totalProcessed = result.getNewFlights() + result.getUpdatedFlights();
+            
             if (result.getPacketsWithErrors() > 0 && result.getTotalPacketsProcessed() == 0) {
                 // All packets failed
+                historyService.completeFailure(history.getId(), duration, 
+                    "All packets failed processing: " + result.getMessage());
                 return ResponseEntity.status(500).body(result);
             } else if (result.getPacketsWithErrors() > 0) {
                 // Some packets failed, but some succeeded
+                historyService.completePartialSuccess(history.getId(), duration, 
+                    result.getMessage(), totalProcessed, result.getPacketsWithErrors());
                 return ResponseEntity.status(207).body(result); // 207 Multi-Status
             } else {
                 // All successful
+                historyService.completeSuccess(history.getId(), duration, 
+                    result.getMessage(), totalProcessed);
                 return ResponseEntity.ok(result);
             }
             
         } catch (Exception e) {
             logger.error("Error during Oracle-based packet processing", e);
+            long duration = System.currentTimeMillis() - startTimeMs;
+            historyService.completeFailure(history.getId(), duration, 
+                "Unexpected error: " + e.getMessage());
+            
             OracleProcessingResult errorResult = new OracleProcessingResult(
                 0, 0, 0, 0, 0,
                 "Sigma Oracle Database (Error)", 
