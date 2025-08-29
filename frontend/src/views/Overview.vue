@@ -154,7 +154,7 @@
             </div>
           </div>
           <router-link 
-            to="/flight-data" 
+            to="/flights" 
             class="inline-flex items-center mt-6 px-6 py-3 bg-white text-aviation-600 rounded-lg font-semibold hover:bg-aviation-50 transition-colors"
           >
             Start Processing Data
@@ -313,7 +313,7 @@
             </svg>
             <div>
               <h4 class="font-semibold text-gray-900 group-hover:text-orange-600">Trajectory Analysis</h4>
-              <p class="text-xs text-gray-600">Visualize flight paths</p>
+              <p class="text-xs text-gray-600">Calculate RMSE metrics</p>
             </div>
           </router-link>
 
