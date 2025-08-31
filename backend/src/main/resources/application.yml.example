@@ -1,0 +1,57 @@
+# Example application configuration
+# Copy this file to application.yml and update with your actual values
+
+spring:
+  application:
+    name: streaming-flight-service
+  
+  # Allow bean definition overriding for Sigma Integration compatibility
+  main:
+    allow-bean-definition-overriding: true
+  
+  data:
+    mongodb:
+      host: localhost
+      port: 27017
+      database: test_predicted_db
+      # Uncomment and configure if you have authentication:
+      # username: your_username
+      # password: your_password
+  
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+    # FIXED: Force UTC timezone for all date/time operations
+    time-zone: UTC
+
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+logging:
+  level:
+    com.example: DEBUG
+    br.atech.gsa: DEBUG
+    org.springframework.data.mongodb: DEBUG
+    org.springframework.integration: WARN
+    org.springframework.security: WARN
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# Oracle Database Configuration (sensitive data as environment variables)
+# IMPORTANT: Set these environment variables for security:
+# export ORACLE_HOST=your-oracle-host
+# export ORACLE_PORT=1521
+# export ORACLE_SERVICE=your-service-name
+# export ORACLE_USERNAME=your-username
+# export ORACLE_PASSWORD=your-password
+oracle:
+  host: ${ORACLE_HOST:your-oracle-host}
+  port: ${ORACLE_PORT:1521}
+  service: ${ORACLE_SERVICE:your-service-name}
+  username: ${ORACLE_USERNAME:your-username}
+  password: ${ORACLE_PASSWORD:your-password}
+
+

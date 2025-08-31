@@ -1,568 +1,401 @@
 # Aviation Flight Data Processing System
 
-A comprehensive Java Spring Boot application for processing and analyzing aviation tracking data, featuring Oracle database integration, real-time streaming capabilities, and advanced punctuality analysis, with support for predicted flight data comparison.
+A comprehensive full-stack application for processing, analyzing, and visualizing aviation flight data with Oracle database integration, real-time streaming capabilities, and ICAO KPI14 compliance analysis.
+
+## Table of Contents
+- [Overview](#overview)
+- [System Architecture](#system-architecture)
+- [Prerequisites](#prerequisites)
+- [Quick Start](#quick-start)
+- [Project Structure](#project-structure)
+- [Features](#features)
+- [Running the Application](#running-the-application)
+- [Sample Data](#sample-data)
+- [API Documentation](#api-documentation)
+- [Development](#development)
+- [Troubleshooting](#troubleshooting)
 
 ## Overview
 
-This application processes aviation flight data from multiple sources and provides comprehensive analysis capabilities, designed to work with:
-- **Oracle Database Integration** - Direct extraction from Sigma production database
-- **Real Path Points** (`listRealPath`) - Real-time aircraft tracking data
-- **Flight Intentions** (`listFlightIntention`) - Planned flight schedules and information
-- **Predicted Flight Data** - Predicted flight routes and timing for comparison with actual data
-- **Punctuality Analysis** - ICAO KPI14 compliance analysis with multiple tolerance windows
-- **Timestamp** - Global reference time for the dataset (stored as String)
+This application provides a complete solution for aviation flight data processing and analysis:
 
-## Features
+**Backend (Java Spring Boot):**
+- Real-time flight data processing with Oracle database integration
+- Predicted flight data analysis and comparison
+- ICAO KPI14 punctuality analysis with multiple tolerance windows
+- Trajectory accuracy analysis using MSE/RMSE metrics
+- Trajectory densification using Sigma simulation engine
+- MongoDB storage with comprehensive data models
+- RESTful API for all operations
 
-### Oracle Database Integration (Production)
-- **Direct Database Access**: Extract flight data directly from Sigma Oracle production database
-- **Automated Processing**: Process hardcoded date (2025-07-11) flight data automatically
-- **Performance Metrics**: Detailed timing metrics for database operations
-- **Connection Management**: Robust Oracle database connection handling
-- **Error Resilience**: Comprehensive error handling and reporting
+**Frontend (Vue.js Dashboard):**
+- Interactive flight data visualization and monitoring
+- Real-time analytics dashboard with charts and maps
+- Flight search and filtering capabilities
+- System health monitoring and diagnostics
+- Responsive design with modern UI components
 
-### Real-Time Streaming (Production)
-- **Live Data Processing**: Process `ReplayPath` packets in real-time via REST API
-- **Oracle Data Processing**: Direct processing from Oracle database via REST endpoints
-- **Predicted Flight Processing**: Process predicted flight data for comparison analysis
-- **Batch Processing**: Efficient batch processing of multiple packets
-- **MongoDB Integration**: Store flight data and tracking points in MongoDB with separate collections
-- **RESTful API**: HTTP endpoints for packet processing and data retrieval
-- **Upsert Operations**: Smart data merging and deduplication
-- **Health Monitoring**: Built-in health checks and statistics endpoints
-- **Data Comparison**: Separate storage for predicted vs actual flight data using planId matching
+## System Architecture
 
-### Punctuality Analysis (ICAO KPI14)
-- **Flight Qualification**: Find flights with SBSP ↔ SBRJ routes and AERODROME endpoints
-- **Flight Matching**: Match predicted flights with real flights via instanceId/planId
-- **Geographic Validation**: Filter flights based on 2 NM threshold and flight level ≤ 4
-- **Coordinate Extraction**: Extract airport coordinates from route elements
-- **Time Comparison**: Compare predicted vs actual flight times
-- **KPI Calculation**: Calculate percentage of flights within delay tolerance windows (±3, ±5, ±15 minutes)
-- **Statistical Reporting**: Generate comprehensive punctuality analysis reports
-- **Analysis Pipeline**: Step-by-step validation and analysis workflow
+```
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   Frontend      │    │    Backend      │    │   Databases     │
+│   (Vue.js)      │◄──►│  (Spring Boot)  │◄──►│                 │
+│                 │    │                 │    │  ┌─────────────┐│
+│ • Dashboard     │    │ • REST API      │    │  │  MongoDB    ││
+│ • Analytics     │    │ • Data Processing│    │  │ (Flight Data)││
+│ • Maps          │    │ • Analysis      │    │  └─────────────┘│
+│ • Search        │    │ • Integration   │    │  ┌─────────────┐│
+│                 │    │                 │    │  │   Oracle    ││
+└─────────────────┘    └─────────────────┘    │  │(Sigma DB)   ││
+                                              │  └─────────────┘│
+                                              └─────────────────┘
+```
 
-
+### Data Flow
+1. **Oracle Database** → Backend extracts flight data
+2. **Backend Processing** → Processes and stores in MongoDB
+3. **Analysis Engine** → Performs punctuality and trajectory analysis
+4. **REST API** → Exposes data and operations
+5. **Frontend Dashboard** → Visualizes data and provides user interface
 
 ## Prerequisites
 
-- Java 15 or higher
-- Maven 3.8+ (tested with 3.8.3)
-- MongoDB (for streaming features) - can be run via Docker
-- Oracle Database access (for production Sigma integration)
-- Data files in the `inputData/` folder (for testing only)
+### Required Software
+- **Java 13+** (for backend)
+- **Node.js 16+** (for frontend)
+- **Maven 3.8+** (for backend build)
+- **Docker** (for MongoDB database)
 
-## 🚀 Quick Setup
 
-**For detailed setup instructions, see [SETUP.md](SETUP.md)**
 
-### Essential Steps:
-1. **Clone and build**: `mvn clean compile`
-2. **Setup MongoDB**: `docker run -d --name aviation_mongodb -p 27017:27017 mongo:latest`
-3. **Create config files**:
-   ```bash
-   cp src/main/java/com/example/config/OracleConfig.java.template src/main/java/com/example/config/OracleConfig.java
-   cp src/main/resources/application.yml.example src/main/resources/application.yml
-   ```
-4. **Set credentials**: Update `application.yml` and set environment variables
-5. **Run**: `mvn spring-boot:run`
+### Sigma Integration Requirement
+**IMPORTANT**: This project must be located under the `/sigma/modules/test/` directory structure to work properly, as it is integrated within the Sigma system and depends on Sigma libraries and configurations.
 
-⚠️ **Security Note**: Configuration files with actual credentials are automatically excluded from git commits.
+**Required Path**: `/sigma/modules/test/streaming-flight-data-system/`
 
-##  Project Structure
+The project uses Sigma dependencies including:
+- `sigma-gsa-commons` for ReplayPath and data processing
+- `sigma-gfx-domain` for Oracle database entities
+- Sigma configuration for Oracle database connectivity
 
-```
-├── src/
-│   ├── main/
-│   │   ├── java/
-│   │   │   ├── com/example/
-│   │   │   │   ├── StreamingFlightApplication.java  # Spring Boot main class
-│   │   │   │   ├── controller/
-│   │   │   │   │   ├── StreamingController.java     # REST API endpoints with Oracle integration
-│   │   │   │   │   ├── PredictedFlightController.java # Predicted flights API
-│   │   │   │   │   └── PunctualityAnalysisController.java # Punctuality analysis API
-│   │   │   │   ├── model/                           # Data models
-│   │   │   │   │   ├── ReplayData.java              # Batch data container
-│   │   │   │   │   ├── ReplayPath.java              # Streaming packet format
-│   │   │   │   │   ├── RealPathPoint.java           # Tracking data points
-│   │   │   │   │   ├── FlightIntention.java         # Flight plan data
-│   │   │   │   │   ├── Kinematic.java               # Position/movement data
-│   │   │   │   │   ├── JoinedFlightData.java        # MongoDB storage format
-│   │   │   │   │   ├── TrackingPoint.java           # Individual tracking points
-│   │   │   │   │   ├── PredictedFlightData.java     # Predicted flight data
-│   │   │   │   │   ├── RouteElement.java            # Predicted route elements
-│   │   │   │   │   ├── RouteSegment.java            # Predicted route segments
-│   │   │   │   │   ├── PunctualityAnalysisResult.java # Punctuality analysis results
-│   │   │   │   │   ├── OracleProcessingResult.java  # NEW: Oracle processing results
-│   │   │   │   │   └── BatchProcessingResult.java   # NEW: Batch processing results
-│   │   │   │   ├── service/                         # Business logic
-│   │   │   │   │   ├── ReplayDataService.java       # Data analysis service
-│   │   │   │   │   ├── StreamingFlightService.java  # Core streaming logic
-│   │   │   │   │   ├── FlightDataJoinService.java   # Data joining service
-│   │   │   │   │   ├── DataAnalysisService.java     # Statistical analysis
-│   │   │   │   │   ├── PredictedFlightService.java  # Predicted flight processing
-│   │   │   │   │   ├── PunctualityAnalysisService.java # Punctuality analysis service
-│   │   │   │   │   └── OracleDataExtractionService.java # NEW: Oracle database integration
-│   │   │   │   └── repository/
-│   │   │   │       ├── FlightRepository.java        # MongoDB repository
-│   │   │   │       └── PredictedFlightRepository.java # Predicted flights repository
-│   │   │   └── resources/
-│   │   │       └── application.yml                  # Configuration
-│   │   └── test/
-│   │       ├── java/                               # Test source code
-│   │       └── resources/                          # Test resources
-├── pom.xml                                         # Maven configuration
-├── STREAMING_SETUP.md                              # Streaming setup guide
-└── README.md                                       # This file
-```
 
-##  Building the Project
 
+### Optional
+- **MongoDB Compass** (for database inspection)
+- **Postman** (for API testing)
+
+## Quick Start
+
+### 1. Clone Repository
 ```bash
-# Compile the project
-mvn compile
-
-# Run tests
-mvn test
-
-# Build the JAR file
-mvn package
-
-# Clean build (recommended after model changes)
-mvn clean package
+git clone <repository-url>
+cd streaming-flight-data-system
 ```
 
-##  Running the Application
-
-### Option 1: Streaming Service (Production Mode)
-
+### 2. Start Database
 ```bash
-# Start the Spring Boot streaming service
+# Start MongoDB container
+docker run -d \
+  --name aviation_mongodb \
+  -p 27017:27017 \
+  -e MONGO_INITDB_DATABASE=aviation_db \
+  mongo:latest
+```
+
+### 3. Configure Environment
+```bash
+# Set Oracle database credentials
+export ORACLE_HOST=your_oracle_host
+export ORACLE_PORT=1521
+export ORACLE_SERVICE=your_service_name
+export ORACLE_USERNAME=your_username
+export ORACLE_PASSWORD=your_password
+```
+
+### 4. Start Backend
+```bash
+cd backend
+mvn clean compile
 mvn spring-boot:run
+# Backend runs on http://localhost:8080
 ```
 
-The streaming service will start on `http://localhost:8080`
-
-### Option 2: Batch Processing (Development/Testing Only)
-
+### 5. Start Frontend
 ```bash
-# Run the batch processing application (for testing with JSON files)
-mvn exec:java -Dexec.mainClass="com.example.App"
+cd frontend
+npm install
+npm run dev
+# Frontend runs on http://localhost:5173
 ```
 
-##  Streaming API Endpoints
+### 6. Verify Setup
+- **Frontend**: Open http://localhost:5173
+- **Backend API**: Check http://localhost:8080/api/flights/health
+- **Database**: Verify MongoDB container is running
 
-### Flight Tracking Endpoints
+## Project Structure
 
-| Method | Endpoint | Description | Input Format |
-|--------|----------|-------------|--------------|
-| `POST` | `/api/flights/process-packet` | **NEW:** Process flight data directly from Oracle database | None (uses hardcoded date 2025-07-11) |
-| `POST` | `/api/flights/process-packet-legacy` | Process single ReplayPath packet (legacy JSON input) | Single `ReplayPath` object |
-| `GET` | `/api/flights/test-oracle-connection` | **NEW:** Test Oracle database connection | None |
-| `GET` | `/api/flights/integration-summary` | **NEW:** Get comprehensive integration summary | None |
-| `GET` | `/api/flights/plan-ids` | Get all planIds for prediction scripts | None |
-| `GET` | `/api/flights/stats` | Get flight statistics | None |
-| `GET` | `/api/flights/health` | Health check | None |
-| `GET` | `/api/flights/analyze-duplicates` | Analyze duplicate indicatives | None |
-| `POST` | `/api/flights/cleanup-duplicates` | Clean up duplicate tracking points | None |
+```
+streaming-flight-data-system/
+├── backend/                    # Java Spring Boot application
+│   ├── src/main/java/com/example/
+│   │   ├── controller/         # REST API controllers (7 controllers)
+│   │   ├── service/           # Business logic services (9 services)
+│   │   ├── model/             # Data models (16 models)
+│   │   ├── repository/        # MongoDB repositories (3 repositories)
+│   │   └── config/            # Configuration classes
+│   ├── database-backup/       # Sample database backup
+│   ├── pom.xml               # Maven configuration
+│   └── README.md             # Backend documentation
+├── frontend/                  # Vue.js dashboard application
+│   ├── src/
+│   │   ├── views/            # Page components (6 pages)
+│   │   ├── components/       # Reusable components
+│   │   ├── services/         # API integration
+│   │   └── router/           # Vue Router configuration
+│   ├── package.json          # Node.js dependencies
+│   └── README.md             # Frontend documentation
+└── README.md                 # This file
+```
 
-### Predicted Flight Endpoints
+## Features
 
-| Method | Endpoint | Description | Input Format |
-|--------|----------|-------------|--------------|
-| `POST` | `/api/predicted-flights/process` | Process predicted flight data | Predicted flight JSON object |
-| `POST` | `/api/predicted-flights/batch` | **NEW:** Batch process multiple predicted flights | Array of predicted flight objects |
-| `GET` | `/api/predicted-flights/stats` | Get predicted flight statistics | None |
-| `GET` | `/api/predicted-flights/health` | Health check for predicted flights service | None |
+### Core Functionality
 
-### Important API Notes
+#### Real-time Flight Data Processing
+- **Oracle Integration**: Direct extraction from Sigma production database
+- **Streaming Processing**: Real-time ReplayPath packet processing
+- **Data Deduplication**: Advanced duplicate detection and removal
+- **Timestamp Disambiguation**: Handle flights with same call sign
+- **MongoDB Storage**: Efficient storage with proper indexing
 
-- **Production**: Use `/process-packet` for Oracle database integration (no JSON input required)
-- **Legacy**: Use `/process-packet-legacy` for JSON-based packet processing
-- **Oracle Integration**: Direct database access eliminates need for external data files
-- **Data Order**: JSON property order doesn't matter - fields are matched by name
-- **Time Format**: The `time` field is stored as a String (can be timestamp or formatted date)
+#### Predicted Flight Analysis
+- **Oracle Extraction**: Extract predictions from Oracle database
+- **Batch Processing**: Process multiple predictions efficiently
+- **Flight Matching**: Match predictions with actual flights via planId
+- **Data Validation**: Comprehensive validation and error handling
 
-### Example API Usage
+#### ICAO KPI14 Punctuality Analysis
+- **Route Filtering**: SBSP ↔ SBRJ routes with AERODROME endpoints (only those aerodroms for now, need to remove filtering to be able to run analysis for all routes!!!)
+- **Geographic Validation**: 2 NM threshold + flight level ≤ 4 filtering
+- **Multiple Tolerance Windows**: ±3, ±5, ±15 minutes analysis
+- **KPI Reporting**: ICAO compliant punctuality reports
 
-#### Flight Tracking API
+#### Trajectory Analysis (Only SBSP SBRJ routes , need to remove filtering to run all the routes!!)
+- **Accuracy Analysis**: MSE/RMSE calculations for trajectory accuracy
+- **Densification**: Sigma simulation engine for trajectory interpolation
+- **Unit Conversions**: Handle different coordinate systems and units
+- **Visualization**: Interactive maps with trajectory overlays
 
+### Dashboard Features
+
+#### Interactive Dashboard
+- **Overview Page**: System status and quick actions
+- **Flight Data**: Comprehensive flight data table with search
+- **Analytics**: Charts and KPI visualizations
+- **Maps**: Interactive flight trajectory visualization
+- **Search**: Advanced multi-criteria search capabilities
+- **Health Monitoring**: System health and diagnostics
+
+#### Data Visualization
+- **Real-time Charts**: Chart.js powered analytics
+- **Interactive Maps**: Leaflet.js flight path visualization
+- **Performance Metrics**: Processing times and success rates
+- **Export Functions**: Download data and reports
+
+## Running the Application
+
+### Development Mode
+
+#### Backend Development
 ```bash
-# Health check
-curl http://localhost:8080/api/flights/health
-
-# NEW: Process flight data directly from Oracle database (production)
-curl -X POST http://localhost:8080/api/flights/process-packet
-
-# NEW: Test Oracle database connection
-curl http://localhost:8080/api/flights/test-oracle-connection
-
-# NEW: Get comprehensive integration summary
-curl http://localhost:8080/api/flights/integration-summary
-
-# Process a single packet (legacy JSON input)
-curl -X POST http://localhost:8080/api/flights/process-packet-legacy \
-  -H "Content-Type: application/json" \
-  -d '{
-    "time": "1626789600000",
-    "listRealPath": [...],
-    "listFlightIntention": [...]
-  }'
-
-# Get statistics
-curl http://localhost:8080/api/flights/stats
-
-# Get all planIds for prediction scripts
-curl http://localhost:8080/api/flights/plan-ids
+cd backend
+mvn spring-boot:run
+# Hot reload enabled for development
 ```
 
-#### Predicted Flights API
-
+#### Frontend Development
 ```bash
-# Process single predicted flight data
-curl -X POST http://localhost:8080/api/predicted-flights/process \
-  -H "Content-Type: application/json" \
-  -d '{
-    "instanceId": 17879345,
-    "routeId": 51435982,
-    "id": 51637804,
-    "indicative": "TAM3886",
-    "time": "[Thu Jul 10 22:25:00 UTC 2025,Fri Jul 11 00:00:00 UTC 2025]",
-    "routeElements": [...],
-    "routeSegments": [...]
-  }'
-
-# NEW: Batch process multiple predicted flights (efficient for 1000+ records)
-curl -X POST http://localhost:8080/api/predicted-flights/batch \
-  -H "Content-Type: application/json" \
-  -d @predicted_flights_batch.json
-
-# Get predicted flight statistics
-curl http://localhost:8080/api/predicted-flights/stats
-
-# Health check for predicted flights
-curl http://localhost:8080/api/predicted-flights/health
+cd frontend
+npm run dev
+# Hot reload enabled, runs on http://localhost:3000
 ```
 
-## 🚀 **NEW: Batch Processing Workflow**
+### Production Mode
 
-### **Efficient Prediction Data Processing**
-
-For processing large batches of predicted flight data (1000+ records), use this optimized workflow:
-
-#### **Step 1: Get All PlanIds**
+#### Backend Production
 ```bash
-# Get all planIds from actual flight data
-curl http://localhost:8080/api/flights/plan-ids
-# Response: {"totalCount": 1243, "planIds": [17871744, 17873112, ...], "processingTimeMs": 45}
+cd backend
+mvn package -DskipTests
+java -jar target/streaming-flight-data-system-14.2.0-SNAPSHOT.jar
 ```
 
-#### **Step 2: Generate Predictions** 
-```python
-# In your prediction script
-import requests
-
-# Get planIds
-response = requests.get("http://localhost:8080/api/flights/plan-ids")
-data = response.json()
-planIds = data["planIds"]  # [17871744, 17873112, ...]
-
-# Generate predictions for all planIds
-predictedFlights = []
-for planId in planIds:
-    predicted = generatePredictedFlight(planId)  # Your prediction logic
-    predictedFlights.append(predicted)
-```
-
-#### **Step 3: Batch Upload** 
-```python
-# Send all predictions in one efficient batch
-result = requests.post(
-    "http://localhost:8080/api/predicted-flights/batch",
-    json=predictedFlights
-)
-
-print(f"Processed: {result.json()}")
-# Response: {"totalReceived": 1243, "totalProcessed": 1200, "totalSkipped": 43, "totalFailed": 0}
-```
-
-### **Batch Processing Features**
-- ✅ **Optimal Performance**: Processes 500 records per database batch
-- ✅ **Skip Duplicates**: Automatically skips existing planIds
-- ✅ **Error Resilience**: Saves what it can, reports failures
-- ✅ **Progress Tracking**: Detailed processing metrics
-- ✅ **Transaction Safety**: Database consistency guaranteed
-
-##  Configuration
-
-### MongoDB Setup
-
-Create `src/main/resources/application.yml` (not tracked in Git):
-```yaml
-spring:
-  data:
-    mongodb:
-      host: localhost
-      port: 27017
-      database: aviation_db
-
-server:
-  port: 8080
-
-logging:
-  level:
-    com.example: INFO
-    org.springframework.data.mongodb: WARN
-```
-
-### Oracle Database Setup (Production)
-
-For Oracle integration, ensure your `application.yml` includes Oracle database configuration:
-```yaml
-# Oracle database configuration for Sigma integration
-spring:
-  datasource:
-    sigma:
-      url: jdbc:oracle:thin:@//your-oracle-host:1521/your-service-name
-      username: ${ORACLE_USERNAME}
-      password: ${ORACLE_PASSWORD}
-      driver-class-name: oracle.jdbc.OracleDriver
-```
-
-**Environment Variables:**
-- `ORACLE_USERNAME`: Oracle database username
-- `ORACLE_PASSWORD`: Oracle database password
-
-### Running MongoDB
-
+#### Frontend Production
 ```bash
-# Using Docker (recommended)
-docker run -d --name aviation_mongodb -p 27017:27017 mongo:latest
-
-# Check if running
-docker ps | grep mongo
-
-# Connect to MongoDB shell
-docker exec -it aviation_mongodb mongosh
-
-# Or install MongoDB locally
-# Follow instructions at https://www.mongodb.com/try/download/community
+cd frontend
+npm run build
+npm run preview
+# Serves production build on http://localhost:3000
 ```
-
-### Database Usage
-
-```bash
-# In MongoDB shell
-use aviation_db
-show collections
-
-# View actual flight data
-db.flights.find().limit(5)
-db.flights.countDocuments()
-
-# View predicted flight data
-db.predicted_flights.find().limit(5)
-db.predicted_flights.countDocuments()
-
-# Find flights by planId for comparison
-db.flights.find({"planId": 51637804})
-db.predicted_flights.find({"planId": 51637804})
-```
-
-
-
-### Production Data Flow
-In production, data comes through the streaming API:
-- **Real-time packets**: `POST /api/flights/process-packet` - Processes individual `ReplayPath` packets
-- **Single packet processing**: `POST /api/flights/process-packet` - Processes individual `ReplayPath` packets
-
-
-
-##  Data Models
-
-The application uses strongly-typed Java models:
-
-- **ReplayPath**: Real-time packet structure for streaming (time as String, listRealPath, listFlightIntention)
-- **ReplayData**: Legacy batch container with same fields as ReplayPath
-- **RealPathPoint**: Individual tracking points with position, speed, flight level
-- **FlightIntention**: Planned flight data with call signs, aircraft types, routes
-- **Kinematic**: Position and movement data including lat/lon coordinates
-- **JoinedFlightData**: Combined flight and tracking data for MongoDB storage (flights collection)
-- **TrackingPoint**: Individual tracking data points within flights
-- **PredictedFlightData**: Predicted flight route and timing data for MongoDB storage (predicted_flights collection)
-- **RouteElement**: Individual route elements in predicted flight paths
-- **RouteSegment**: Route segments connecting route elements
-- **PunctualityAnalysisResult**: Results of arrival punctuality analysis with KPI metrics and delay tolerance windows
-- **OracleProcessingResult**: **NEW** - Results from Oracle database processing with performance metrics
-- **BatchProcessingResult**: **NEW** - Results from batch processing operations
-
-### Key Model Changes
-- **Time Field**: Changed from `long` to `String` to handle various timestamp formats
-- **Flexible JSON**: Property order in JSON doesn't matter - matched by field name
-- **MongoDB Ready**: Optimized for efficient storage and querying
-- **Oracle Integration**: New models support direct database extraction and processing metrics
-
-## Dependencies
-
-- **Spring Boot 3.1.2**: Web framework and auto-configuration
-- **Spring Data MongoDB**: MongoDB integration with automatic connection pooling
-- **Jackson**: JSON parsing and data binding with flexible field matching
-- **JUnit 5**: Testing framework with container support
-- **Java Time API**: Timestamp handling and formatting
-
-##  Testing
-
-### Run Tests
-```bash
-# Run all tests
-mvn test
-
-# Clean and test (recommended after model changes)
-mvn clean test
-
-# Test specific class
-mvn test -Dtest=StreamingFlightServiceTest
-```
-
-### Integration Testing
-```bash
-
-
-# Check flight tracking results
-curl http://localhost:8080/api/flights/stats
-
-# Test predicted flight processing
-curl -X POST http://localhost:8080/api/predicted-flights/process \
-  -H "Content-Type: application/json" \
-  -d '{
-    "instanceId": 17879345,
-    "routeId": 51435982,
-    "id": 51637804,
-    "indicative": "TAM3886",
-    "time": "[Thu Jul 10 22:25:00 UTC 2025,Fri Jul 11 00:00:00 UTC 2025]",
-    "startPointIndicative": "SBGR",
-    "endPointIndicative": "SBCG",
-    "routeElements": [],
-    "routeSegments": []
-  }'
-
-# Check predicted flights results
-curl http://localhost:8080/api/predicted-flights/stats
-
-### Punctuality Analysis API
-
-#### **Run Punctuality Analysis (ICAO KPI14)**
-```bash
-# Perform arrival punctuality analysis
-curl http://localhost:8080/api/punctuality-analysis/run
-
-# Expected response:
-{
-  "totalMatchedFlights": 150,
-  "totalAnalyzedFlights": 140,
-  "delayToleranceWindows": [
-    {
-      "windowDescription": "± 3 minutes",
-      "toleranceMinutes": 3,
-      "flightsWithinTolerance": 85,
-      "percentageWithinTolerance": 60.7,
-      "kpiOutput": "60.7% of flights where predicted time was within ± 3 minutes of actual time"
-    },
-    {
-      "windowDescription": "± 5 minutes",
-      "toleranceMinutes": 5,
-      "flightsWithinTolerance": 112,
-      "percentageWithinTolerance": 80.0,
-      "kpiOutput": "80.0% of flights where predicted time was within ± 5 minutes of actual time"
-    },
-    {
-      "windowDescription": "± 15 minutes",
-      "toleranceMinutes": 15,
-      "flightsWithinTolerance": 134,
-      "percentageWithinTolerance": 95.7,
-      "kpiOutput": "95.7% of flights where predicted time was within ± 15 minutes of actual time"
-    }
-  ],
-  "analysisTimestamp": "2024-12-19T10:30:45",
-  "message": "Analysis completed: 150 predicted flights, 150 matched with real flights, 140 analyzed successfully"
-}
-```
-
-#### **Get Analysis Statistics**
-```bash
-# Get statistics about available data for analysis
-curl http://localhost:8080/api/punctuality-analysis/stats
-
-# Response:
-{
-  "totalPredictedFlights": 150,
-  "totalRealFlights": 200,
-  "analysisCapability": true
-}
-```
-
-#### **Health Check**
-```bash
-# Check if punctuality analysis service is running
-curl http://localhost:8080/api/punctuality-analysis/health
-
-# Response: "Punctuality Analysis Service is running"
-```
-
-### Performance Testing
-```bash
-# Test batch processing performance
-# Use the predicted flights batch endpoint for performance testing
-curl -X POST http://localhost:8080/api/predicted-flights/batch \
-  -H "Content-Type: application/json" \
-  -d @your_batch_file.json
-```
-
-##  Deployment
-
-### Local Development
-1. Start MongoDB: `docker run -d --name aviation_mongodb -p 27017:27017 mongo:latest`
-2. Create `application.yml` with database settings
-3. Run: `mvn spring-boot:run`
-
-### Remote/Production
-1. Ensure Java 17+ and MongoDB are available
-2. Create appropriate `application.yml` for the environment
-3. Build: `mvn clean package`
-4. Deploy: `java -jar target/java-project-1.0.0.jar`
 
 ### Docker Deployment (Future)
-```dockerfile
-# Dockerfile example for containerized deployment
-FROM openjdk:17-jdk-slim
-COPY target/java-project-1.0.0.jar app.jar
-EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "/app.jar"]
+```bash
+# Build and run with Docker Compose
+docker-compose up -d
 ```
 
-##  Documentation
+## Sample Data
 
-- **STREAMING_SETUP.md**: Detailed setup guide for streaming features
-- **API Documentation**: Available endpoints and usage examples
-- **Model Documentation**: Data structure specifications
+### Pre-populated Database Backup
+For quick setup with sample data:
 
-##  Troubleshooting
+**Location**: `backend/database-backup/aviation_db_backup.tar`
+- **Contains**: 1,214 flights from 07/11/2025
+- **Extraction Time**: ~6 days (use backup to skip this process)
+- **Collections**: flights, predicted_flights, processing_history
+
+**Usage**:
+```bash
+cd backend/database-backup
+# Follow instructions in database-backup/README.md
+```
+
+### Data Processing Workflow
+1. **Extract from Oracle**: Process flight data from Oracle database
+2. **Store in MongoDB**: Save processed data with proper structure
+3. **Generate Predictions**: Extract and process predicted flight data
+4. **Run Analysis**: Perform punctuality and trajectory analysis
+5. **Visualize Results**: View results in dashboard
+
+## API Documentation
+
+### Backend API Endpoints
+- **Base URL**: `http://localhost:8080/api`
+- **Documentation**: See `backend/src/main/java/com/example/controller/README.md`
+
+### Key API Categories
+- **Flight Processing**: `/api/flights/*` - Flight data operations
+- **Predicted Flights**: `/api/predicted-flights/*` - Prediction processing
+- **Analysis**: `/api/punctuality-analysis/*`, `/api/trajectory-accuracy/*`
+- **Search**: `/api/flight-search/*` - Search and management
+- **Monitoring**: `/api/processing-history/*` - Operation tracking
+
+### Example API Usage
+```bash
+# Test system health
+curl http://localhost:8080/api/flights/health
+
+# Process Oracle data
+curl -X POST http://localhost:8080/api/flights/process-packet
+
+# Get punctuality analysis
+curl http://localhost:8080/api/punctuality-analysis/punctuality-kpis
+
+# Search flights
+curl "http://localhost:8080/api/flight-search/by-plan-id?query=17879"
+```
+
+## Development
+
+### Backend Development
+- **Technology**: Java 13, Spring Boot, MongoDB, Oracle integration
+- **Documentation**: `backend/README.md`
+- **API Docs**: `backend/src/main/java/com/example/controller/README.md`
+
+### Frontend Development
+- **Technology**: Vue.js 3, Vite, Tailwind CSS, Chart.js, Leaflet.js
+- **Documentation**: `frontend/README.md`
+- **Component Docs**: `frontend/src/components/README.md`
+
+### Adding New Features
+1. **Backend**: Add controller, service, model, repository as needed
+2. **Frontend**: Add view, component, API integration
+3. **Documentation**: Update relevant README files
+4. **Testing**: Add unit and integration tests
+
+## Troubleshooting
 
 ### Common Issues
 
-1. **Port 8080 already in use**: Change port in `application.yml` or stop other services
-2. **MongoDB connection failed**: Ensure MongoDB is running and accessible
-3. **Compilation errors**: Run `mvn clean compile` after model changes
-4. **Test failures**: Check if test data format matches current model structure
-5. **Predicted flight processing errors**: Verify JSON format includes 'id' field for planId mapping
+#### Application Won't Start
+```bash
+# Check if ports are available
+lsof -i :8080  # Backend
+lsof -i :5173  # Frontend
 
-### Debug Mode
-Enable debug logging in `application.yml`:
-```yaml
-logging:
-  level:
-    com.example: DEBUG
-    org.springframework.data.mongodb: DEBUG
+# Check MongoDB container
+docker ps | grep aviation_mongodb
+docker logs aviation_mongodb
 ```
 
+#### Database Connection Issues
+```bash
+# Restart MongoDB container
+docker restart aviation_mongodb
 
+# Check database connectivity
+docker exec -it aviation_mongodb mongosh aviation_db --eval "db.stats()"
+```
+
+#### Oracle Connection Issues
+```bash
+# Verify environment variables
+echo $ORACLE_HOST
+echo $ORACLE_USERNAME
+
+# Test Oracle connectivity
+curl http://localhost:8080/api/flights/test-oracle-connection
+```
+
+#### Frontend API Connection
+```bash
+# Check backend is running
+curl http://localhost:8080/api/flights/health
+
+# Check browser console for CORS errors
+# Verify API base URL in frontend configuration
+```
+
+### Performance Issues
+- **Memory**: Increase JVM heap size for backend
+- **Database**: Monitor MongoDB performance and indexing
+- **Network**: Check Oracle database connectivity and performance
+- **Frontend**: Monitor browser memory usage and API response times
+
+### Getting Help
+
+#### Log Files
+- **Backend**: Console output or configured log files
+- **Frontend**: Browser developer console
+- **Database**: `docker logs aviation_mongodb`
+
+#### Documentation
+- **Backend**: `backend/README.md` and package-specific READMEs
+- **Frontend**: `frontend/README.md` and component documentation
+- **API**: Controller documentation for endpoint details
+
+#### Health Checks
+```bash
+# System health endpoints
+curl http://localhost:8080/api/flights/health
+curl http://localhost:8080/api/predicted-flights/health
+curl http://localhost:8080/api/processing-history/health
+```
+
+## Contributing
+
+### Development Workflow
+1. **Setup**: Follow quick start guide
+2. **Development**: Make changes in appropriate backend/frontend folders
+3. **Testing**: Test changes locally
+4. **Documentation**: Update relevant README files
+5. **Commit**: Follow conventional commit messages
+
+### Code Standards
+- **Backend**: Follow Spring Boot best practices
+- **Frontend**: Follow Vue.js 3 Composition API patterns
+- **Documentation**: Keep READMEs updated with changes
+- **Testing**: Add tests for new functionality
+
+For detailed component documentation, see the README files in the `backend/` and `frontend/` directories.

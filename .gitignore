@@ -1,7 +1,16 @@
-# Compiled class file
+# ===========================================
+# Aviation Flight Data Processing System
+# Full-Stack Application .gitignore
+# ===========================================
+
+# ===========================================
+# BACKEND (Java/Spring Boot/Maven)
+# ===========================================
+
+# Compiled class files
 *.class
 
-# Log file
+# Log files
 *.log
 
 # BlueJ files
@@ -10,7 +19,7 @@
 # Mobile Tools for Java (J2ME)
 .mtj.tmp/
 
-# Package Files #
+# Package Files
 *.jar
 *.war
 *.nar
@@ -19,10 +28,10 @@
 *.tar.gz
 *.rar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+# Virtual machine crash logs
 hs_err_pid*
 replay_pid*
-PathVoTest/
+
 # Maven
 target/
 pom.xml.tag
@@ -35,45 +44,269 @@ buildNumber.properties
 .mvn/timing.properties
 .mvn/wrapper/maven-wrapper.jar
 
-# IDE files
+# Spring Boot
+spring-boot-*.log
+
+# ===========================================
+# FRONTEND (Node.js/Vue.js/Vite)
+# ===========================================
+
+# Dependencies
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Build outputs
+dist/
+build/
+.vite/
+.nuxt/
+.output/
+
+# Environment files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Package manager lock files (keep package-lock.json, ignore others)
+yarn.lock
+pnpm-lock.yaml
+
+# ===========================================
+# DATABASE & DATA FILES
+# ===========================================
+
+# Database backups (except the sample backup)
+*.sql
+*.dump
+mongodb_backup/
+
+
+# Data directories
+inputData/
+outputData/
+PathVo/
+data/
+temp/
+
+# Large data files
+*.json.backup
+flight_data.json
+*.csv.large
+
+# ===========================================
+# CONFIGURATION & CREDENTIALS
+# ===========================================
+
+# Configuration files with sensitive information
+# These contain actual database credentials - use templates instead
+backend/src/main/resources/application.yml
+
+
+# Keep template/example files
+!backend/src/main/resources/application.yml.example
+!backend/src/main/java/com/example/config/OracleConfig.java.template
+
+# Environment configuration
+.env.production
+.env.staging
+config.properties
+
+# ===========================================
+# IDE & EDITOR FILES
+# ===========================================
+
+# IntelliJ IDEA
 .idea/
 *.iml
-.vscode/
+*.iws
+*.ipr
+out/
+
+# Eclipse
 .settings/
 .project
 .classpath
+.metadata/
+bin/
+tmp/
 
-# OS generated files
+# Visual Studio Code
+.vscode/
+*.code-workspace
+
+# NetBeans
+nbproject/
+nbbuild/
+nbdist/
+.nb-gradle/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ===========================================
+# OPERATING SYSTEM FILES
+# ===========================================
+
+# macOS
 .DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
-ehthumbs.db
+.AppleDouble
+.LSOverride
+
+# Windows
 Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.tmp
+*.temp
+Desktop.ini
+$RECYCLE.BIN/
 
-# Configuration files with sensitive information
-# These files contain actual database credentials and should never be committed
-# Use the .template and .example files instead
-src/main/java/com/example/resources/application.yml
-src/main/resources/application.yml
-src/main/java/com/example/config/OracleConfig.java
-src/main/java/com/example/config/SigmaConfig.java
-src/main/java/com/example/config/SecurityConfig.java
-src/test/java/com/example/OracleConnectionTest.java
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
 
-# Data folders
-inputData/
-outputData/
-PathVo/
-DuplicateChecker.java
-flight_data.json
-run_duplicate_checker.bat
-run_duplicate_checker.sh
-single_packet_analysis_2025-07-22
+# ===========================================
+# DEVELOPMENT & TESTING
+# ===========================================
+
+# Test files with sensitive data
+backend/src/test/java/com/example/OracleConnectionTest.java
+backend/src/test/java/com/example/DatabaseIntegrationTest.java
+
+# Test outputs
+test-results/
+coverage/
+.nyc_output/
+junit.xml
+
+# Development scripts
 scripts/
+run_*.bat
+run_*.sh
+*.local.js
 
-mongodb_backup/
+# Temporary development files
+DuplicateChecker.java
+PathVoTest/
+single_packet_analysis_*
 
-docker-compose.yml
-mongo-init.js
+# ===========================================
+# DOCKER & DEPLOYMENT
+# ===========================================
+
+# Docker files (if they contain sensitive info)
+docker-compose.override.yml
+docker-compose.local.yml
+.dockerignore.local
+
+# Keep main docker files
+!docker-compose.yml
+!Dockerfile
+
+# Kubernetes
+*.kubeconfig
+
+# ===========================================
+# LOGS & MONITORING
+# ===========================================
+
+# Application logs
+logs/
+*.log.*
+application-*.log
+
+# System logs
+nohup.out
+
+# ===========================================
+# BACKUP & ARCHIVE FILES
+# ===========================================
+
+# Backup files
+*.backup
+*.bak
+*.old
+*.orig
+*.save
+*.swp
+*.swo
+*~
+
+# Archive files
+*.7z
+*.dmg
+*.gz
+*.iso
+
+*.zip
+
+# ===========================================
+# DOCUMENTATION BUILDS
+# ===========================================
+
+# Generated documentation
+docs/build/
+site/
+
+# ===========================================
+# SECURITY & CERTIFICATES
+# ===========================================
+
+# SSL certificates
+*.pem
+*.key
+*.crt
+*.p12
+*.jks
+*.keystore
+*.truststore
+
+# SSH keys
+id_rsa
+id_rsa.pub
+known_hosts
+
+# ===========================================
+# PERFORMANCE & PROFILING
+# ===========================================
+
+# JVM profiling
+*.hprof
+*.prof
+
+# Node.js profiling
+*.cpuprofile
+*.heapprofile
+
+# ===========================================
+# CUSTOM PROJECT EXCLUSIONS
+# ===========================================
+
+# Large sample data files (keep small samples)
+sample_data_large/
+test_data_full/
+
+# Generated reports
+reports/
+analytics_output/
+
+# Cache directories
+.cache/
+.parcel-cache/
+
+# Temporary API documentation
+api-docs-temp/
